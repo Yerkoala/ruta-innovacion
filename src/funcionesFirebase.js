@@ -1,5 +1,5 @@
 import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
-import { db } from "./firebaseConfig";
+import { db } from "./firebaseconfig";
 
 /**
  * Sube una evaluación a Firestore.

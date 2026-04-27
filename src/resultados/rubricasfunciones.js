@@ -1,6 +1,6 @@
 
 import { collection, onSnapshot } from "firebase/firestore";
-import { db } from "../firebaseConfig";
+import { db } from "../firebaseconfig";
 
 /**
  * Escucha en tiempo real los cambios en una colección específica.
