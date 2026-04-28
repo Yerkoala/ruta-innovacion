@@ -49,7 +49,8 @@ const categoriaToPonderacionId = (categoriaNormalizada) => {
     "chispeza": "chispeza",
     "mejora continua": "mejora-continua",
     "sandia cala": "sandia-cala",
-    "pinta pa bueno": "pinta-pa-bueno"
+    "pinta pa bueno": "pinta-pa-bueno",
+    "eureka": "eureka"
   };
   return mapeo[categoriaNormalizada] || categoriaNormalizada;
 };
@@ -60,6 +61,7 @@ const categoriaEstilos = {
   "sandia cala": { color: "#28aa1d", icono: "🍉" },
   "pinta pa bueno": { color: "#f96703", icono: "🖌️" },
   "chispeza": { color: "#ffc64c", icono: "💡" },
+  "eureka": { color: "#2196f3", icono: "💡" },
   "default": { color: "#6c757d", icono: "📁" }
 };
 
@@ -83,6 +85,7 @@ const getCategoryColors = (categoria) => {
     "#28aa1d": { bg: '#E8F5E9', border: '#81C784' }, // sandia cala
     "#f96703": { bg: '#FFF3E0', border: '#FFB74D' }, // pinta pa bueno
     "#ffc64c": { bg: '#FFF8E1', border: '#FFD54F' }, // chispeza
+    "#2196f3": { bg: '#E3F2FD', border: '#64B5F6' }, // eureka
     "#6c757d": { bg: '#f5f5f5', border: '#dee2e6' }  // default
   };
   
@@ -656,7 +659,7 @@ export default function RankingPrivado() {
                                         
                                         return (
                                           <TableRow key={idx} sx={{ '&:hover': { bgcolor: '#fafafa' } }}>
-                                            <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{evaluacion.juez || 'Sin nombre'}</TableCell>
+                                            <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{evaluacion.jurado || 'Sin nombre'}</TableCell>
                                             <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.DESAFIO || '-'}</TableCell>
                                             <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.CREATIVIDAD || '-'}</TableCell>
                                             <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.IMPLEMENTABILIDAD || '-'}</TableCell>

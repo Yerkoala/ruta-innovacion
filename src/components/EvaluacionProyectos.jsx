@@ -30,6 +30,7 @@ const categoriaEstilos = {
     "sandia cala": { color: "#28aa1d", icono: "🍉" },
     "pinta pa bueno": { color: "#f96703", icono: "🖌️" },
     "chispeza": { color: "#ffc64c", icono: "💡" },
+    "eureka": { color: "#2196f3", icono: "💡" },
     "default": { color: "#6c757d", icono: "📁" } // Fallback para categorías no reconocidas
 }
 
@@ -467,8 +468,8 @@ function EvaluacionProyectos() {
                         <Stack spacing={2}>
                             {grupo.proyectos.map((proyecto) => {
                                 const proyectoId = proyecto.id
-                                const estaEnviado = enviadoProyectoId === proyectoId
-
+                                const estaEnviado = enviadoProyectoId === proyectoId                                
+                                const fueGuardado = proyectosGuardadosFirebase[proyectoId] // Verifica si ya fue guardado alguna vez
                                 return (
                                     <Accordion
                                         key={proyectoId}
@@ -534,7 +535,7 @@ function EvaluacionProyectos() {
                                                 CALIFICACIÓN
                                             </Typography>
 
-                                            <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: 'repeat(3, 1fr)' }} gap={0.625}>
+                                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
                                                 {obtenerCamposPorCategoria(proyecto.categoria).map((campo) => {
                                                     const valorCampo = inputs[proyectoId]?.[campo.nombre] ?? ''
                                                     const mostrarError = intentoEnvio[proyectoId] && valorCampo === ''
@@ -629,7 +630,7 @@ function EvaluacionProyectos() {
                                                         </Box>
                                                     ) : proyectosConError[proyectoId] ? (
                                                         'Reintentar Guardar'
-                                                    ) : estaEnviado ? (
+                                                    ) : fueGuardado ? (
                                                         'Actualizar Evaluación'
                                                     ) : (
                                                         'Guardar Evaluación'

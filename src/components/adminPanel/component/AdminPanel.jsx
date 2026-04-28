@@ -1,9 +1,9 @@
 ﻿import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Box, Button, Typography, Select, MenuItem, FormControl, InputLabel, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Alert, Stack, LinearProgress, ThemeProvider, CssBaseline, Accordion, AccordionSummary, AccordionDetails, TextField, Dialog, DialogTitle, DialogContent, DialogActions, IconButton, Snackbar, CircularProgress } from '@mui/material';
+import * as XLSX from 'xlsx';
 
 // Imports locales
 import { theme } from '../const/theme';
-import { MOCK_DATA } from '../const/mockData';
 import { UploadIcon, CheckIcon, PlusIcon, ExpandMoreIcon, SettingsIcon, DeleteIcon, CopyIcon, StepBadge } from '../components/Icons';
 import { CategorySection } from '../components/CategorySection';
 import { procesarArchivoExcel, validarArchivoExcel } from '../utils/fileProcessing';
@@ -26,7 +26,6 @@ export default function AdminPanel() {
     const [isDragging, setIsDragging] = useState(false);
     const [loading, setLoading] = useState(false);
     const [expandedCats, setExpandedCats] = useState({});
-    const [usandoMock, setUsandoMock] = useState(false);
     const [accordionExpanded, setAccordionExpanded] = useState(true);
 
     // Estados para Gestionar Finales
@@ -54,9 +53,11 @@ export default function AdminPanel() {
         'chispeza': { DESAFIO: 20, CREATIVIDAD: 20, IMPLEMENTABILIDAD: 20, ESCALABILIDAD: 20, IMPACTO: 20 },
         'sandia-cala': { DESAFIO: 20, CREATIVIDAD: 15, IMPLEMENTABILIDAD: 20, ESCALABILIDAD: 15, EBITDA: 20, PRODUCTIVIDAD: 10 },
         'mejora-continua': { DESAFIO: 20, CREATIVIDAD: 15, IMPLEMENTABILIDAD: 20, ESCALABILIDAD: 15, EBITDA: 20, PRODUCTIVIDAD: 10 },
-        'pinta-pa-bueno': { DESAFIO: 20, CREATIVIDAD: 15, IMPLEMENTABILIDAD: 20, ESCALABILIDAD: 15, EBITDA: 20, PRODUCTIVIDAD: 10 }
+        'pinta-pa-bueno': { DESAFIO: 20, CREATIVIDAD: 15, IMPLEMENTABILIDAD: 20, ESCALABILIDAD: 15, EBITDA: 20, PRODUCTIVIDAD: 10 },
+        'eureka': { DESAFIO: 20, CREATIVIDAD: 15, IMPLEMENTABILIDAD: 20, ESCALABILIDAD: 15, EBITDA: 20, PRODUCTIVIDAD: 10 }
     });
     const [loadingPonderaciones, setLoadingPonderaciones] = useState(false);
+    const [loadingSaveCategoria, setLoadingSaveCategoria] = useState(null); // Track qué categoría se está guardando
 
     const fileInputRef = useRef(null);
 
@@ -116,7 +117,6 @@ export default function AdminPanel() {
         }
 
         setArchivoCargado(file);
-        setUsandoMock(false);
 
         try {
             const mapped = await procesarArchivoExcel(file);
@@ -130,14 +130,52 @@ export default function AdminPanel() {
         }
     };
 
-    const cargarDemo = () => {
-        setUsandoMock(true);
-        setArchivoCargado({ name: 'proyectos_demo.xlsx', size: 8192 });
-        setProyectos(MOCK_DATA);
+    const descargarPlantillaFormato = () => {
+        // Crear workbook y worksheet
+        const wb = XLSX.utils.book_new();
+        
+        // Definir las columnas de la plantilla
+        const headers = ['N°', 'Proyecto', 'Gerencia', 'Categoría', 'Grupo', 'Líder', 'Descripción'];
+        
+        // Crear datos de ejemplo (opcional: puedes dejar solo headers)
+        const data = [
+            headers,
+            [1, 'Ejemplo de Proyecto', 'Gerencia Ejemplo', 'chispeza', 'Grupo A', 'Juan Pérez', 'Descripción del proyecto de ejemplo'],
+            [2, '', '', '', '', '', '']
+        ];
+        
+        // Crear worksheet desde el array
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        
+        // Establecer anchos de columnas
+        ws['!cols'] = [
+            { wch: 5 },   // N°
+            { wch: 30 },  // Proyecto
+            { wch: 20 },  // Gerencia
+            { wch: 15 },  // Categoría
+            { wch: 12 },  // Grupo
+            { wch: 20 },  // Líder
+            { wch: 50 }   // Descripción
+        ];
+        
+        // Agregar worksheet al workbook
+        XLSX.utils.book_append_sheet(wb, ws, 'Proyectos');
+        
+        // Descargar el archivo
+        XLSX.writeFile(wb, 'plantilla_proyectos.xlsx');
+        
+        mostrarNotificacion('Plantilla descargada correctamente', 'success');
+    };
 
-        const cats = {};
-        MOCK_DATA.forEach(p => { if (p.Categoria) cats[p.Categoria] = true; });
-        setExpandedCats(Object.fromEntries(Object.keys(cats).map(c => [c, true])));
+    const limpiarArchivoCargado = () => {
+        setArchivoCargado(null);
+        setProyectos([]);
+        setError('');
+        setExpandedCats({});
+        // Limpiar el input de archivo
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
     };
 
     // Funciones para gestionar finales
@@ -256,7 +294,7 @@ export default function AdminPanel() {
     const cargarTodasLasPonderaciones = async () => {
         setLoadingPonderaciones(true);
         try {
-            const categorias = ['chispeza', 'sandia-cala', 'mejora-continua', 'pinta-pa-bueno'];
+            const categorias = ['chispeza', 'sandia-cala', 'mejora-continua', 'pinta-pa-bueno', 'eureka'];
             const nuevasPonderaciones = {};
             
             for (const categoria of categorias) {
@@ -276,7 +314,7 @@ export default function AdminPanel() {
         setPonderaciones(prev => ({
             ...prev,
             [categoria]: {
-                ...prev[categoria],
+                ...(prev[categoria] || {}), // Validación de seguridad
                 [campo]: Number(valor) || 0
             }
         }));
@@ -284,6 +322,7 @@ export default function AdminPanel() {
 
     const calcularSumaPonderaciones = (categoria) => {
         const pond = ponderaciones[categoria];
+        if (!pond) return 0; // Validación de seguridad
         // Chispeza tiene campos diferentes (5 campos con IMPACTO)
         const camposValidos = categoria === 'chispeza'
             ? ['DESAFIO', 'CREATIVIDAD', 'IMPLEMENTABILIDAD', 'ESCALABILIDAD', 'IMPACTO']
@@ -299,11 +338,14 @@ export default function AdminPanel() {
             return;
         }
 
+        setLoadingSaveCategoria(categoria);
         try {
             await guardarPonderaciones(categoria, ponderaciones[categoria]);
             mostrarNotificacion('Ponderaciones guardadas correctamente', 'success');
         } catch (error) {
             mostrarNotificacion(error.message, 'error');
+        } finally {
+            setLoadingSaveCategoria(null);
         }
     };
 
@@ -676,7 +718,7 @@ export default function AdminPanel() {
                                         {archivoCargado ? (
                                             <Box sx={{ textAlign: 'center' }}>
                                                 <Typography variant="body2" color="primary.main" fontWeight={600}>
-                                                    {usandoMock ? 'Demo cargado' : 'Archivo cargado'}
+                                                    Archivo cargado
                                                 </Typography>
                                                 <Typography variant="caption" color="text.secondary">
                                                     {archivoCargado.name}
@@ -694,11 +736,28 @@ export default function AdminPanel() {
                                         )}
                                     </Box>
 
-                                    <Box sx={{ mt: 1.5, textAlign: 'center' }}>
-                                        <Button size="small" variant="text" color="secondary" onClick={cargarDemo} sx={{ fontSize: 11, textDecoration: 'underline' }}>
-                                            Cargar datos de demo
+                                    <Stack direction="row" spacing={1} sx={{ mt: 1.5, justifyContent: 'center' }}>
+                                        <Button 
+                                            size="small" 
+                                            variant="outlined" 
+                                            color="primary" 
+                                            onClick={descargarPlantillaFormato} 
+                                            sx={{ fontSize: 11, textTransform: 'none' }}
+                                        >
+                                            📥 Descargar planilla formato
                                         </Button>
-                                    </Box>
+                                        {archivoCargado && (
+                                            <Button 
+                                                size="small" 
+                                                variant="outlined" 
+                                                color="error" 
+                                                onClick={limpiarArchivoCargado} 
+                                                sx={{ fontSize: 11, textTransform: 'none' }}
+                                            >
+                                                ✕ Quitar archivo
+                                            </Button>
+                                        )}
+                                    </Stack>
                                 </Paper>
                             </Box>
 
@@ -1032,7 +1091,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="DESAFÍO"
                                                 type="number"
-                                                value={ponderaciones['chispeza'].DESAFIO}
+                                                value={ponderaciones['chispeza']?.DESAFIO || 0}
                                                 onChange={(e) => actualizarPonderacion('chispeza', 'DESAFIO', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1041,7 +1100,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="CREATIVIDAD"
                                                 type="number"
-                                                value={ponderaciones['chispeza'].CREATIVIDAD}
+                                                value={ponderaciones['chispeza']?.CREATIVIDAD || 0}
                                                 onChange={(e) => actualizarPonderacion('chispeza', 'CREATIVIDAD', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1050,7 +1109,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="IMPLEMENTABILIDAD"
                                                 type="number"
-                                                value={ponderaciones['chispeza'].IMPLEMENTABILIDAD}
+                                                value={ponderaciones['chispeza']?.IMPLEMENTABILIDAD || 0}
                                                 onChange={(e) => actualizarPonderacion('chispeza', 'IMPLEMENTABILIDAD', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1059,7 +1118,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="ESCALABILIDAD"
                                                 type="number"
-                                                value={ponderaciones['chispeza'].ESCALABILIDAD}
+                                                value={ponderaciones['chispeza']?.ESCALABILIDAD || 0}
                                                 onChange={(e) => actualizarPonderacion('chispeza', 'ESCALABILIDAD', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1068,14 +1127,14 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="IMPACTO"
                                                 type="number"
-                                                value={ponderaciones['chispeza'].IMPACTO || 0}
+                                                value={ponderaciones['chispeza']?.IMPACTO || 0}
                                                 onChange={(e) => actualizarPonderacion('chispeza', 'IMPACTO', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
                                                 size="small"
                                             />
                                         </Box>
-                                        <Stack direction="row" alignItems="center" justifyContent="space-between" mt={2}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 3 }}>
                                             <Typography variant="body2" sx={{ 
                                                 color: calcularSumaPonderaciones('chispeza') === 100 ? '#ffc64c' : 'error.main',
                                                 fontWeight: 600 
@@ -1087,7 +1146,8 @@ export default function AdminPanel() {
                                                 variant="contained" 
                                                 size="small"
                                                 onClick={() => guardarPonderacionesCategoria('chispeza')}
-                                                disabled={calcularSumaPonderaciones('chispeza') !== 100}
+                                                disabled={calcularSumaPonderaciones('chispeza') !== 100 || loadingSaveCategoria === 'chispeza'}
+                                                startIcon={loadingSaveCategoria === 'chispeza' ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : null}
                                                 sx={{
                                                     bgcolor: '#ffc64c',
                                                     color: '#000',
@@ -1095,9 +1155,9 @@ export default function AdminPanel() {
                                                     '&:disabled': { bgcolor: 'grey.300' }
                                                 }}
                                             >
-                                                Guardar
+                                                {loadingSaveCategoria === 'chispeza' ? 'Guardando...' : 'Guardar'}
                                             </Button>
-                                        </Stack>
+                                        </Box>
                                     </Paper>
 
                                     {/* Sandía Calá */}
@@ -1109,7 +1169,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="DESAFÍO"
                                                 type="number"
-                                                value={ponderaciones['sandia-cala'].DESAFIO}
+                                                value={ponderaciones['sandia-cala']?.DESAFIO || 0}
                                                 onChange={(e) => actualizarPonderacion('sandia-cala', 'DESAFIO', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1118,7 +1178,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="CREATIVIDAD"
                                                 type="number"
-                                                value={ponderaciones['sandia-cala'].CREATIVIDAD}
+                                                value={ponderaciones['sandia-cala']?.CREATIVIDAD || 0}
                                                 onChange={(e) => actualizarPonderacion('sandia-cala', 'CREATIVIDAD', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1127,7 +1187,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="IMPLEMENTABILIDAD"
                                                 type="number"
-                                                value={ponderaciones['sandia-cala'].IMPLEMENTABILIDAD}
+                                                value={ponderaciones['sandia-cala']?.IMPLEMENTABILIDAD || 0}
                                                 onChange={(e) => actualizarPonderacion('sandia-cala', 'IMPLEMENTABILIDAD', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1136,7 +1196,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="ESCALABILIDAD"
                                                 type="number"
-                                                value={ponderaciones['sandia-cala'].ESCALABILIDAD}
+                                                value={ponderaciones['sandia-cala']?.ESCALABILIDAD || 0}
                                                 onChange={(e) => actualizarPonderacion('sandia-cala', 'ESCALABILIDAD', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1145,7 +1205,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="EBITDA"
                                                 type="number"
-                                                value={ponderaciones['sandia-cala'].EBITDA}
+                                                value={ponderaciones['sandia-cala']?.EBITDA || 0}
                                                 onChange={(e) => actualizarPonderacion('sandia-cala', 'EBITDA', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1154,14 +1214,14 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="PRODUCTIVIDAD"
                                                 type="number"
-                                                value={ponderaciones['sandia-cala'].PRODUCTIVIDAD}
+                                                value={ponderaciones['sandia-cala']?.PRODUCTIVIDAD || 0}
                                                 onChange={(e) => actualizarPonderacion('sandia-cala', 'PRODUCTIVIDAD', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
                                                 size="small"
                                             />
                                         </Box>
-                                        <Stack direction="row" alignItems="center" justifyContent="space-between" mt={2}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 3 }}>
                                             <Typography variant="body2" sx={{ 
                                                 color: calcularSumaPonderaciones('sandia-cala') === 100 ? '#28aa1d' : 'error.main',
                                                 fontWeight: 600 
@@ -1173,7 +1233,8 @@ export default function AdminPanel() {
                                                 variant="contained" 
                                                 size="small"
                                                 onClick={() => guardarPonderacionesCategoria('sandia-cala')}
-                                                disabled={calcularSumaPonderaciones('sandia-cala') !== 100}
+                                                disabled={calcularSumaPonderaciones('sandia-cala') !== 100 || loadingSaveCategoria === 'sandia-cala'}
+                                                startIcon={loadingSaveCategoria === 'sandia-cala' ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : null}
                                                 sx={{
                                                     bgcolor: '#28aa1d',
                                                     color: '#fff',
@@ -1181,9 +1242,9 @@ export default function AdminPanel() {
                                                     '&:disabled': { bgcolor: 'grey.300' }
                                                 }}
                                             >
-                                                Guardar
+                                                {loadingSaveCategoria === 'sandia-cala' ? 'Guardando...' : 'Guardar'}
                                             </Button>
-                                        </Stack>
+                                        </Box>
                                     </Paper>
 
                                     {/* Mejora Continua */}
@@ -1195,7 +1256,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="DESAFÍO"
                                                 type="number"
-                                                value={ponderaciones['mejora-continua'].DESAFIO}
+                                                value={ponderaciones['mejora-continua']?.DESAFIO || 0}
                                                 onChange={(e) => actualizarPonderacion('mejora-continua', 'DESAFIO', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1204,7 +1265,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="CREATIVIDAD"
                                                 type="number"
-                                                value={ponderaciones['mejora-continua'].CREATIVIDAD}
+                                                value={ponderaciones['mejora-continua']?.CREATIVIDAD || 0}
                                                 onChange={(e) => actualizarPonderacion('mejora-continua', 'CREATIVIDAD', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1213,7 +1274,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="IMPLEMENTABILIDAD"
                                                 type="number"
-                                                value={ponderaciones['mejora-continua'].IMPLEMENTABILIDAD}
+                                                value={ponderaciones['mejora-continua']?.IMPLEMENTABILIDAD || 0}
                                                 onChange={(e) => actualizarPonderacion('mejora-continua', 'IMPLEMENTABILIDAD', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1222,7 +1283,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="ESCALABILIDAD"
                                                 type="number"
-                                                value={ponderaciones['mejora-continua'].ESCALABILIDAD}
+                                                value={ponderaciones['mejora-continua']?.ESCALABILIDAD || 0}
                                                 onChange={(e) => actualizarPonderacion('mejora-continua', 'ESCALABILIDAD', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1231,7 +1292,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="EBITDA"
                                                 type="number"
-                                                value={ponderaciones['mejora-continua'].EBITDA}
+                                                value={ponderaciones['mejora-continua']?.EBITDA || 0}
                                                 onChange={(e) => actualizarPonderacion('mejora-continua', 'EBITDA', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1240,14 +1301,14 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="PRODUCTIVIDAD"
                                                 type="number"
-                                                value={ponderaciones['mejora-continua'].PRODUCTIVIDAD}
+                                                value={ponderaciones['mejora-continua']?.PRODUCTIVIDAD || 0}
                                                 onChange={(e) => actualizarPonderacion('mejora-continua', 'PRODUCTIVIDAD', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
                                                 size="small"
                                             />
                                         </Box>
-                                        <Stack direction="row" alignItems="center" justifyContent="space-between" mt={2}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 3 }}>
                                             <Typography variant="body2" sx={{ 
                                                 color: calcularSumaPonderaciones('mejora-continua') === 100 ? '#a114c4' : 'error.main',
                                                 fontWeight: 600 
@@ -1259,7 +1320,8 @@ export default function AdminPanel() {
                                                 variant="contained" 
                                                 size="small"
                                                 onClick={() => guardarPonderacionesCategoria('mejora-continua')}
-                                                disabled={calcularSumaPonderaciones('mejora-continua') !== 100}
+                                                disabled={calcularSumaPonderaciones('mejora-continua') !== 100 || loadingSaveCategoria === 'mejora-continua'}
+                                                startIcon={loadingSaveCategoria === 'mejora-continua' ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : null}
                                                 sx={{
                                                     bgcolor: '#a114c4',
                                                     color: '#fff',
@@ -1267,9 +1329,9 @@ export default function AdminPanel() {
                                                     '&:disabled': { bgcolor: 'grey.300' }
                                                 }}
                                             >
-                                                Guardar
+                                                {loadingSaveCategoria === 'mejora-continua' ? 'Guardando...' : 'Guardar'}
                                             </Button>
-                                        </Stack>
+                                        </Box>
                                     </Paper>
 
                                     {/* Pinta Pa' Bueno */}
@@ -1281,7 +1343,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="DESAFÍO"
                                                 type="number"
-                                                value={ponderaciones['pinta-pa-bueno'].DESAFIO}
+                                                value={ponderaciones['pinta-pa-bueno']?.DESAFIO || 0}
                                                 onChange={(e) => actualizarPonderacion('pinta-pa-bueno', 'DESAFIO', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1290,7 +1352,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="CREATIVIDAD"
                                                 type="number"
-                                                value={ponderaciones['pinta-pa-bueno'].CREATIVIDAD}
+                                                value={ponderaciones['pinta-pa-bueno']?.CREATIVIDAD || 0}
                                                 onChange={(e) => actualizarPonderacion('pinta-pa-bueno', 'CREATIVIDAD', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1299,7 +1361,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="IMPLEMENTABILIDAD"
                                                 type="number"
-                                                value={ponderaciones['pinta-pa-bueno'].IMPLEMENTABILIDAD}
+                                                value={ponderaciones['pinta-pa-bueno']?.IMPLEMENTABILIDAD || 0}
                                                 onChange={(e) => actualizarPonderacion('pinta-pa-bueno', 'IMPLEMENTABILIDAD', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1308,7 +1370,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="ESCALABILIDAD"
                                                 type="number"
-                                                value={ponderaciones['pinta-pa-bueno'].ESCALABILIDAD}
+                                                value={ponderaciones['pinta-pa-bueno']?.ESCALABILIDAD || 0}
                                                 onChange={(e) => actualizarPonderacion('pinta-pa-bueno', 'ESCALABILIDAD', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1317,7 +1379,7 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="EBITDA"
                                                 type="number"
-                                                value={ponderaciones['pinta-pa-bueno'].EBITDA}
+                                                value={ponderaciones['pinta-pa-bueno']?.EBITDA || 0}
                                                 onChange={(e) => actualizarPonderacion('pinta-pa-bueno', 'EBITDA', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
@@ -1326,14 +1388,14 @@ export default function AdminPanel() {
                                             <TextField
                                                 label="PRODUCTIVIDAD"
                                                 type="number"
-                                                value={ponderaciones['pinta-pa-bueno'].PRODUCTIVIDAD}
+                                                value={ponderaciones['pinta-pa-bueno']?.PRODUCTIVIDAD || 0}
                                                 onChange={(e) => actualizarPonderacion('pinta-pa-bueno', 'PRODUCTIVIDAD', e.target.value)}
                                                 InputProps={{ endAdornment: '%' }}
                                                 inputProps={{ min: 0, max: 100 }}
                                                 size="small"
                                             />
                                         </Box>
-                                        <Stack direction="row" alignItems="center" justifyContent="space-between" mt={2}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 3 }}>
                                             <Typography variant="body2" sx={{ 
                                                 color: calcularSumaPonderaciones('pinta-pa-bueno') === 100 ? '#f96703' : 'error.main',
                                                 fontWeight: 600 
@@ -1345,7 +1407,8 @@ export default function AdminPanel() {
                                                 variant="contained" 
                                                 size="small"
                                                 onClick={() => guardarPonderacionesCategoria('pinta-pa-bueno')}
-                                                disabled={calcularSumaPonderaciones('pinta-pa-bueno') !== 100}
+                                                disabled={calcularSumaPonderaciones('pinta-pa-bueno') !== 100 || loadingSaveCategoria === 'pinta-pa-bueno'}
+                                                startIcon={loadingSaveCategoria === 'pinta-pa-bueno' ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : null}
                                                 sx={{
                                                     bgcolor: '#f96703',
                                                     color: '#fff',
@@ -1353,9 +1416,96 @@ export default function AdminPanel() {
                                                     '&:disabled': { bgcolor: 'grey.300' }
                                                 }}
                                             >
-                                                Guardar
+                                                {loadingSaveCategoria === 'pinta-pa-bueno' ? 'Guardando...' : 'Guardar'}
                                             </Button>
-                                        </Stack>
+                                        </Box>
+                                    </Paper>
+
+                                    {/* Eureka */}
+                                    <Paper sx={{ p: 3 }}>
+                                        <Typography variant="h6" sx={{ mb: 2.5, fontWeight: 600, color: '#2196f3' }}>
+                                            👩🏻 Eureka
+                                        </Typography>
+                                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2 }}>
+                                            <TextField
+                                                label="DESAFÍO"
+                                                type="number"
+                                                value={ponderaciones['eureka']?.DESAFIO || 0}
+                                                onChange={(e) => actualizarPonderacion('eureka', 'DESAFIO', e.target.value)}
+                                                InputProps={{ endAdornment: '%' }}
+                                                inputProps={{ min: 0, max: 100 }}
+                                                size="small"
+                                            />
+                                            <TextField
+                                                label="CREATIVIDAD"
+                                                type="number"
+                                                value={ponderaciones['eureka']?.CREATIVIDAD || 0}
+                                                onChange={(e) => actualizarPonderacion('eureka', 'CREATIVIDAD', e.target.value)}
+                                                InputProps={{ endAdornment: '%' }}
+                                                inputProps={{ min: 0, max: 100 }}
+                                                size="small"
+                                            />
+                                            <TextField
+                                                label="IMPLEMENTABILIDAD"
+                                                type="number"
+                                                value={ponderaciones['eureka']?.IMPLEMENTABILIDAD || 0}
+                                                onChange={(e) => actualizarPonderacion('eureka', 'IMPLEMENTABILIDAD', e.target.value)}
+                                                InputProps={{ endAdornment: '%' }}
+                                                inputProps={{ min: 0, max: 100 }}
+                                                size="small"
+                                            />
+                                            <TextField
+                                                label="ESCALABILIDAD"
+                                                type="number"
+                                                value={ponderaciones['eureka']?.ESCALABILIDAD || 0}
+                                                onChange={(e) => actualizarPonderacion('eureka', 'ESCALABILIDAD', e.target.value)}
+                                                InputProps={{ endAdornment: '%' }}
+                                                inputProps={{ min: 0, max: 100 }}
+                                                size="small"
+                                            />
+                                            <TextField
+                                                label="EBITDA"
+                                                type="number"
+                                                value={ponderaciones['eureka']?.EBITDA || 0}
+                                                onChange={(e) => actualizarPonderacion('eureka', 'EBITDA', e.target.value)}
+                                                InputProps={{ endAdornment: '%' }}
+                                                inputProps={{ min: 0, max: 100 }}
+                                                size="small"
+                                            />
+                                            <TextField
+                                                label="PRODUCTIVIDAD"
+                                                type="number"
+                                                value={ponderaciones['eureka']?.PRODUCTIVIDAD || 0}
+                                                onChange={(e) => actualizarPonderacion('eureka', 'PRODUCTIVIDAD', e.target.value)}
+                                                InputProps={{ endAdornment: '%' }}
+                                                inputProps={{ min: 0, max: 100 }}
+                                                size="small"
+                                            />
+                                        </Box>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 3 }}>
+                                            <Typography variant="body2" sx={{ 
+                                                color: calcularSumaPonderaciones('eureka') === 100 ? '#2196f3' : 'error.main',
+                                                fontWeight: 600 
+                                            }}>
+                                                Total: {calcularSumaPonderaciones('eureka')}% 
+                                                {calcularSumaPonderaciones('eureka') !== 100 && ' ⚠️ Debe sumar 100%'}
+                                            </Typography>
+                                            <Button 
+                                                variant="contained" 
+                                                size="small"
+                                                onClick={() => guardarPonderacionesCategoria('eureka')}
+                                                disabled={calcularSumaPonderaciones('eureka') !== 100 || loadingSaveCategoria === 'eureka'}
+                                                startIcon={loadingSaveCategoria === 'eureka' ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : null}
+                                                sx={{
+                                                    bgcolor: '#2196f3',
+                                                    color: '#fff',
+                                                    '&:hover': { bgcolor: '#1976d2' },
+                                                    '&:disabled': { bgcolor: 'grey.300' }
+                                                }}
+                                            >
+                                                {loadingSaveCategoria === 'eureka' ? 'Guardando...' : 'Guardar'}
+                                            </Button>
+                                        </Box>
                                     </Paper>
                                 </Stack>
                             )}
