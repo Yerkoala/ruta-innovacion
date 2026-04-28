@@ -12,11 +12,19 @@ import {
   AccordionSummary, 
   AccordionDetails,
   Chip,
-  Divider
+  Divider,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper
 } from '@mui/material';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import PersonIcon from '@mui/icons-material/Person';
 
 // Colores de Agrosuper
 const COLORS = {
@@ -87,10 +95,11 @@ const getCategoryColors = (categoria) => {
   };
 };
 
-export default function Ranking() {
+export default function RankingPrivado() {
   const navigate = useNavigate();
   const [activeGroup, setActiveGroup] = useState('todos');
   const [expandedCategories, setExpandedCategories] = useState({});
+  const [expandedProjects, setExpandedProjects] = useState({});
   const [finalActiva, setFinalActiva] = useState(null);
   const [proyectos, setProyectos] = useState([]);
   const [evaluaciones, setEvaluaciones] = useState([]);
@@ -170,6 +179,36 @@ export default function Ranking() {
     }
   };
 
+  // Calcular nota de una evaluación individual
+  const calcularNotaEvaluacion = (evaluacion, categoria) => {
+    const catNormalizada = normalizarTexto(categoria);
+    const ponderacionId = categoriaToPonderacionId(catNormalizada);
+    const ponderacion = ponderaciones[ponderacionId] || {};
+    
+    // Calcular promedio de cada campo
+    const campos = ['DESAFIO', 'CREATIVIDAD', 'IMPLEMENTABILIDAD', 'ESCALABILIDAD'];
+    
+    // Determinar si usa IMPACTO o EBITDA/PRODUCTIVIDAD
+    if (catNormalizada === 'chispeza') {
+      campos.push('IMPACTO');
+    } else {
+      campos.push('EBITDA', 'PRODUCTIVIDAD');
+    }
+
+    let notaFinal = 0;
+
+    campos.forEach(campo => {
+      const valor = evaluacion.calificaciones?.[campo];
+      if (valor !== undefined && valor !== null) {
+        const peso = ponderacion[campo] !== undefined ? ponderacion[campo] : (100 / campos.length);
+        const notaPonderada = (Number(valor) * peso) / 100;
+        notaFinal += notaPonderada;
+      }
+    });
+
+    return notaFinal;
+  };
+
   // Calcular promedios por proyecto
   const calcularPromedioProyecto = (proyectoId, categoria) => {
     const evaluacionesProyecto = evaluaciones.filter(e => e.proyectoId === proyectoId);
@@ -217,7 +256,8 @@ export default function Ranking() {
     return {
       nota: notaFinal,
       cantidadEvaluaciones: evaluacionesProyecto.length,
-      detalles: detallesCampos
+      detalles: detallesCampos,
+      evaluacionesIndividuales: evaluacionesProyecto
     };
   };
 
@@ -267,6 +307,13 @@ export default function Ranking() {
     setExpandedCategories(prev => ({
       ...prev,
       [category]: !prev[category]
+    }));
+  };
+
+  const toggleProject = (projectId) => {
+    setExpandedProjects(prev => ({
+      ...prev,
+      [projectId]: !prev[projectId]
     }));
   };
 
@@ -374,7 +421,7 @@ export default function Ranking() {
                 mb: 0.5
               }}
             >
-              {finalActiva.nombre}
+              {finalActiva.nombre} - PRIVADO
             </Typography>
             <Typography variant="body2" sx={{ color: '#666', fontWeight: 600 }}>
               Ranking {finalActiva.anio}
@@ -499,63 +546,143 @@ export default function Ranking() {
 
                   <AccordionDetails sx={{ p: 0 }}>
                     <Box>
-                      {proyectosCategoria.map((proyecto, index) => (
-                        <Box
-                          key={proyecto.id}
-                          sx={{
-                            px: 3,
-                            py: 2,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 2,
-                            borderBottom: index < proyectosCategoria.length - 1 ? '1px solid #f0f0f0' : 'none',
-                            '&:hover': { bgcolor: '#fafafa' },
-                            transition: 'background-color 0.2s'
-                          }}
-                        >
-                          {/* Posición */}
-                          <Box sx={{ flexShrink: 0 }}>
-                            {getRankIcon(index)}
-                          </Box>
+                      {proyectosCategoria.map((proyecto, index) => {
+                        const isProjectExpanded = expandedProjects[proyecto.id];
+                        
+                        return (
+                          <Box key={proyecto.id}>
+                            <Box
+                              onClick={() => toggleProject(proyecto.id)}
+                              sx={{
+                                px: 3,
+                                py: 2,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 2,
+                                cursor: 'pointer',
+                                borderBottom: !isProjectExpanded ? (index < proyectosCategoria.length - 1 ? '1px solid #f0f0f0' : 'none') : '1px solid #f0f0f0',
+                                '&:hover': { bgcolor: '#fafafa' },
+                                transition: 'background-color 0.2s'
+                              }}
+                            >
+                              {/* Posición */}
+                              <Box sx={{ flexShrink: 0 }}>
+                                {getRankIcon(index)}
+                              </Box>
 
-                          {/* Info del Proyecto */}
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography variant="body1" fontWeight={700} sx={{ color: COLORS.navy, mb: 0.5 }}>
-                              #{proyecto.numero} - {proyecto.proyecto}
-                            </Typography>
-                            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                              <Typography variant="caption" color="text.secondary">
-                                <strong>Líder:</strong> {proyecto.lider}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                <strong>Gerencia:</strong> {proyecto.gerencia}
-                              </Typography>
-                              {proyecto.grupo && (
-                                <Typography variant="caption" color="text.secondary">
-                                  <strong>Grupo:</strong> {proyecto.grupo}
+                              {/* Info del Proyecto */}
+                              <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography variant="body1" fontWeight={700} sx={{ color: COLORS.navy, mb: 0.5 }}>
+                                  #{proyecto.numero} - {proyecto.proyecto}
                                 </Typography>
-                              )}
-                            </Box>
-                          </Box>
+                                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                                  <Typography variant="caption" color="text.secondary">
+                                    <strong>Líder:</strong> {proyecto.lider}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    <strong>Gerencia:</strong> {proyecto.gerencia}
+                                  </Typography>
+                                  {proyecto.grupo && (
+                                    <Typography variant="caption" color="text.secondary">
+                                      <strong>Grupo:</strong> {proyecto.grupo}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              </Box>
 
-                          {/* Nota */}
-                          <Box sx={{ flexShrink: 0, textAlign: 'right' }}>
-                            {proyecto.resultado ? (
-                              <Typography 
-                                variant="h5" 
-                                fontWeight={900}
-                                sx={{ color: colors.text }}
-                              >
-                                {proyecto.resultado.nota.toFixed(2)}
-                              </Typography>
-                            ) : (
-                              <Typography variant="caption" color="text.disabled" fontStyle="italic">
-                                Sin evaluar
-                              </Typography>
+                              {/* Nota y Evaluaciones */}
+                              <Box sx={{ flexShrink: 0, textAlign: 'right', display: 'flex', alignItems: 'center', gap: 1 }}>
+                                {proyecto.resultado ? (
+                                  <>
+                                    <Box>
+                                      <Typography 
+                                        variant="h5" 
+                                        fontWeight={900}
+                                        sx={{ color: colors.text }}
+                                      >
+                                        {proyecto.resultado.nota.toFixed(2)}
+                                      </Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        {proyecto.resultado.cantidadEvaluaciones} eval.
+                                      </Typography>
+                                    </Box>
+                                    <ExpandMoreIcon 
+                                      sx={{ 
+                                        color: '#666',
+                                        transform: isProjectExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                        transition: 'transform 0.3s'
+                                      }} 
+                                    />
+                                  </>
+                                ) : (
+                                  <Typography variant="caption" color="text.disabled" fontStyle="italic">
+                                    Sin evaluar
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Box>
+
+                            {/* Detalles de Evaluaciones - Accordion interno */}
+                            {isProjectExpanded && proyecto.resultado?.evaluacionesIndividuales && (
+                              <Box sx={{ bgcolor: '#f8f9fa', px: 3, py: 2, borderBottom: index < proyectosCategoria.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
+                                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: COLORS.navy }}>
+                                  <PersonIcon sx={{ fontSize: 18 }} />
+                                  Evaluaciones Individuales
+                                </Typography>
+                                
+                                <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #e0e0e0' }}>
+                                  <Table size="small">
+                                    <TableHead>
+                                      <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                        <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Juez</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Desafío</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Creatividad</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Implementabilidad</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Escalabilidad</TableCell>
+                                        {normalizarTexto(proyecto.categoria) === 'chispeza' ? (
+                                          <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Impacto</TableCell>
+                                        ) : (
+                                          <>
+                                            <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>EBITDA</TableCell>
+                                            <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Productividad</TableCell>
+                                          </>
+                                        )}
+                                        <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12, bgcolor: colors.bg, color: colors.text }}>Nota Final</TableCell>
+                                      </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                      {proyecto.resultado.evaluacionesIndividuales.map((evaluacion, idx) => {
+                                        const notaEvaluacion = calcularNotaEvaluacion(evaluacion, proyecto.categoria);
+                                        
+                                        return (
+                                          <TableRow key={idx} sx={{ '&:hover': { bgcolor: '#fafafa' } }}>
+                                            <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{evaluacion.juez || 'Sin nombre'}</TableCell>
+                                            <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.DESAFIO || '-'}</TableCell>
+                                            <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.CREATIVIDAD || '-'}</TableCell>
+                                            <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.IMPLEMENTABILIDAD || '-'}</TableCell>
+                                            <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.ESCALABILIDAD || '-'}</TableCell>
+                                            {normalizarTexto(proyecto.categoria) === 'chispeza' ? (
+                                              <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.IMPACTO || '-'}</TableCell>
+                                            ) : (
+                                              <>
+                                                <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.EBITDA || '-'}</TableCell>
+                                                <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.PRODUCTIVIDAD || '-'}</TableCell>
+                                              </>
+                                            )}
+                                            <TableCell align="center" sx={{ fontWeight: 700, fontSize: 14, bgcolor: colors.bg, color: colors.text }}>
+                                              {notaEvaluacion.toFixed(2)}
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })}
+                                    </TableBody>
+                                  </Table>
+                                </TableContainer>
+                              </Box>
                             )}
                           </Box>
-                        </Box>
-                      ))}
+                        );
+                      })}
                     </Box>
                   </AccordionDetails>
                 </Accordion>

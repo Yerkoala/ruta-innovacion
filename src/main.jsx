@@ -13,6 +13,7 @@ import ResultadosFinales from './resultados/ResultadosFinales';
 import AdminPanel from './components/adminPanel/component/AdminPanel';
 import EvaluacionProyectos from './components/EvaluacionProyectos';
 import Ranking from './components/Ranking';
+import RankingPrivado from './components/RankingPrivado';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>
@@ -21,6 +22,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <Route path="/evaluacion" element={<EvaluacionProyectos />} />
       <Route path="/admin" element={<AdminPanel />} />
       <Route path="/ranking" element={<Ranking />} />
+      <Route path="/ranking-privado" element={<RankingPrivado />} />
     </Routes>
   </BrowserRouter>
 );
