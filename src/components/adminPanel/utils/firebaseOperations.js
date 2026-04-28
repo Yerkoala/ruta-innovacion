@@ -239,6 +239,8 @@ export const guardarProyectosEnFirebase = async (finalId, proyectos, reemplazar 
                 categoria: proyecto.Categoria || '',
                 lider: proyecto.Lider || proyecto.Líder || '',
                 descripcion: proyecto.Descripcion || proyecto.Descripción || '',
+                problema: proyecto.Problema || '',
+                impacto: proyecto.Impacto || '',
                 grupo: proyecto.Grupo || null,
                 fechaCarga: new Date()
             };

@@ -135,13 +135,13 @@ export default function AdminPanel() {
         const wb = XLSX.utils.book_new();
         
         // Definir las columnas de la plantilla
-        const headers = ['N°', 'Proyecto', 'Gerencia', 'Categoría', 'Grupo', 'Líder', 'Descripción'];
+        const headers = ['N°', 'Proyecto', 'Gerencia', 'Categoría', 'Grupo', 'Líder', 'Descripción', 'Problema', 'Impacto'];
         
         // Crear datos de ejemplo (opcional: puedes dejar solo headers)
         const data = [
             headers,
-            [1, 'Ejemplo de Proyecto', 'Gerencia Ejemplo', 'chispeza', 'Grupo A', 'Juan Pérez', 'Descripción del proyecto de ejemplo'],
-            [2, '', '', '', '', '', '']
+            [1, 'Ejemplo de Proyecto', 'Gerencia Ejemplo', 'chispeza', 'Grupo A', 'Juan Pérez', 'Descripción del proyecto de ejemplo', 'Problema que resuelve el proyecto', 'Impacto esperado del proyecto'],
+            [2, '', '', '', '', '', '', '', '']
         ];
         
         // Crear worksheet desde el array
@@ -155,7 +155,9 @@ export default function AdminPanel() {
             { wch: 15 },  // Categoría
             { wch: 12 },  // Grupo
             { wch: 20 },  // Líder
-            { wch: 50 }   // Descripción
+            { wch: 50 },  // Descripción
+            { wch: 50 },  // Problema
+            { wch: 50 }   // Impacto
         ];
         
         // Agregar worksheet al workbook
@@ -360,8 +362,16 @@ export default function AdminPanel() {
     useEffect(() => {
         if (finalActivaId && finalesDisponibles.length > 0) {
             const finalActiva = finalesDisponibles.find(f => f.id === finalActivaId);
-            if (finalActiva && finalActiva.anio !== anioFiltroFinalActiva) {
-                setAnioFiltroFinalActiva(finalActiva.anio);
+            if (finalActiva) {
+                // Actualizar año si es diferente
+                if (finalActiva.anio !== anioFiltroFinalActiva) {
+                    setAnioFiltroFinalActiva(finalActiva.anio);
+                }
+                // Actualizar tipo de final si es diferente
+                const tipoFinal = finalActiva.tipo || 'Evaluacion';
+                if (tipoFinal !== tipoFinalFiltro) {
+                    setTipoFinalFiltro(tipoFinal);
+                }
             }
         }
     }, [finalActivaId, finalesDisponibles]);

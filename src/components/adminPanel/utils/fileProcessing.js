@@ -28,6 +28,8 @@ export const procesarArchivoExcel = (file) => {
                     Categoria: row['Categoria'] || row['Categoría'] || row['categoria'] || '',
                     Lider: row['Lider'] || row['Líder'] || row['lider'] || '',
                     Descripcion: row['Descripcion'] || row['Descripción'] || row['descripcion'] || '',
+                    Problema: row['Problema'] || row['problema'] || '',
+                    Impacto: row['Impacto'] || row['impacto'] || '',
                     Grupo: row['Grupo'] || row['grupo'] || null,
                 }));
 

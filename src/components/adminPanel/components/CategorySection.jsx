@@ -117,6 +117,26 @@ export const CategorySection = ({ categoria, proyectos, expanded, onToggle }) =>
                                 }}>
                                     Descripción
                                 </TableCell>
+                                <TableCell sx={{
+                                    fontWeight: 700,
+                                    fontSize: 11,
+                                    color: 'text.secondary',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: 0.5,
+                                    py: 1.2
+                                }}>
+                                    Problema
+                                </TableCell>
+                                <TableCell sx={{
+                                    fontWeight: 700,
+                                    fontSize: 11,
+                                    color: 'text.secondary',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: 0.5,
+                                    py: 1.2
+                                }}>
+                                    Impacto
+                                </TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -175,6 +195,24 @@ export const CategorySection = ({ categoria, proyectos, expanded, onToggle }) =>
                                         wordBreak: 'break-word'
                                     }}>
                                         {p.Descripcion || p.descripcion}
+                                    </TableCell>
+                                    <TableCell sx={{
+                                        fontSize: 12,
+                                        color: 'text.secondary',
+                                        pt: 1.5,
+                                        lineHeight: 1.5,
+                                        wordBreak: 'break-word'
+                                    }}>
+                                        {p.Problema || p.problema || '-'}
+                                    </TableCell>
+                                    <TableCell sx={{
+                                        fontSize: 12,
+                                        color: 'text.secondary',
+                                        pt: 1.5,
+                                        lineHeight: 1.5,
+                                        wordBreak: 'break-word'
+                                    }}>
+                                        {p.Impacto || p.impacto || '-'}
                                     </TableCell>
                                 </TableRow>
                             ))}

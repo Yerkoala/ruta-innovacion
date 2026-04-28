@@ -54,10 +54,11 @@ function EvaluacionProyectos() {
     const localStorageKey = `evaluaciones_${finalId}_${nombreJurado}`.replace(/\s+/g, '-')
 
     // Guardar en localStorage (respaldo automático)
-    const guardarEnLocalStorage = (datos) => {
+    const guardarEnLocalStorage = (datos, guardados = {}) => {
         try {
             localStorage.setItem(localStorageKey, JSON.stringify({
                 datos,
+                proyectosGuardados: guardados,
                 timestamp: new Date().toISOString(),
                 finalNombre,
                 nombreJurado
@@ -72,17 +73,17 @@ function EvaluacionProyectos() {
         try {
             const guardado = localStorage.getItem(localStorageKey)
             if (guardado) {
-                const { datos, timestamp } = JSON.parse(guardado)
+                const { datos, proyectosGuardados, timestamp } = JSON.parse(guardado)
                 // Solo recuperar si tiene menos de 7 días
                 const diasDesdeGuardado = (new Date() - new Date(timestamp)) / (1000 * 60 * 60 * 24)
                 if (diasDesdeGuardado < 7) {
-                    return datos
+                    return { datos: datos || {}, proyectosGuardados: proyectosGuardados || {} }
                 }
             }
         } catch (error) {
             console.error('Error al recuperar de localStorage:', error)
         }
-        return null
+        return { datos: {}, proyectosGuardados: {} }
     }
 
     // Limpiar localStorage de esta evaluación
@@ -96,23 +97,24 @@ function EvaluacionProyectos() {
 
     // useEffect: Recuperar datos guardados localmente al montar
     useEffect(() => {
-        const datosRecuperados = recuperarDeLocalStorage()
-        if (datosRecuperados && Object.keys(datosRecuperados).length > 0) {
-            setInputs(datosRecuperados)
+        const { datos, proyectosGuardados } = recuperarDeLocalStorage()
+        if (datos && Object.keys(datos).length > 0) {
+            setInputs(datos)
+            setProyectosGuardadosFirebase(proyectosGuardados)
             setSnackbar({
                 open: true,
-                mensaje: `📋 Se recuperaron ${Object.keys(datosRecuperados).length} evaluaciones guardadas localmente`,
+                mensaje: `📋 Se recuperaron ${Object.keys(datos).length} evaluaciones guardadas localmente`,
                 severity: 'info'
             })
         }
     }, []) // Solo al montar
 
-    // useEffect: Auto-guardar en localStorage cuando cambian los inputs
+    // useEffect: Auto-guardar en localStorage cuando cambian los inputs o proyectosGuardadosFirebase
     useEffect(() => {
         if (Object.keys(inputs).length > 0) {
-            guardarEnLocalStorage(inputs)
+            guardarEnLocalStorage(inputs, proyectosGuardadosFirebase)
         }
-    }, [inputs])
+    }, [inputs, proyectosGuardadosFirebase])
 
     // Función para obtener campos según categoría
     const obtenerCamposPorCategoria = (categoria) => {
@@ -305,12 +307,13 @@ function EvaluacionProyectos() {
             )
 
             // Éxito: marcar como guardado y limpiar de localStorage eventualmente
+            const esActualizacion = proyectosGuardadosFirebase[proyectoId]
             setEnviadoProyectoId(proyectoId)
             setProyectosGuardadosFirebase(prev => ({ ...prev, [proyectoId]: true }))
             
             setSnackbar({
                 open: true,
-                mensaje: '✅ Evaluación guardada en la nube',
+                mensaje: esActualizacion ? '✅ Evaluación actualizada en la nube' : '✅ Evaluación guardada en la nube',
                 severity: 'success'
             })
             setTimeout(() => setEnviadoProyectoId(null), 3000)
@@ -531,6 +534,28 @@ function EvaluacionProyectos() {
                                                 </Box>
                                             )}
 
+                                            {proyecto.problema && (
+                                                <Box sx={{ backgroundColor: '#fff', p: 2, borderRadius: 2, border: '1px dashed #d9d9d9', mb: 3 }}>
+                                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', display: 'block', mb: 0.5 }}>
+                                                        Problema que Resuelve
+                                                    </Typography>
+                                                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                                        {proyecto.problema}
+                                                    </Typography>
+                                                </Box>
+                                            )}
+
+                                            {proyecto.impacto && (
+                                                <Box sx={{ backgroundColor: '#fff', p: 2, borderRadius: 2, border: '1px dashed #d9d9d9', mb: 3 }}>
+                                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', display: 'block', mb: 0.5 }}>
+                                                        Impacto Esperado
+                                                    </Typography>
+                                                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                                        {proyecto.impacto}
+                                                    </Typography>
+                                                </Box>
+                                            )}
+
                                             <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 700, color: estilo.color }}>
                                                 CALIFICACIÓN
                                             </Typography>
@@ -590,7 +615,17 @@ function EvaluacionProyectos() {
                                                 })}
                                             </Box>
 
-                                            <Box mt={3} pt={2} borderTop="1px solid #e0e0e0" display="flex" justifyContent="flex-end" gap={2} alignItems="center">
+                                            <Box 
+                                                sx={{ 
+                                                    mt: 5, 
+                                                    pt: 3, 
+                                                    borderTop: '1px solid #e0e0e0', 
+                                                    display: 'flex', 
+                                                    justifyContent: 'flex-end', 
+                                                    gap: 2, 
+                                                    alignItems: 'center' 
+                                                }}
+                                            >
                                                 {estaEnviado && loadingProyectoId !== proyectoId && (
                                                     <Box display="flex" alignItems="center" gap={1}>
                                                         <CheckCircleIcon sx={{ color: '#2e7d32', fontSize: 20 }} />
