@@ -7,7 +7,21 @@ import { theme } from '../const/theme';
 import { UploadIcon, CheckIcon, PlusIcon, ExpandMoreIcon, SettingsIcon, DeleteIcon, CopyIcon, StepBadge } from '../components/Icons';
 import { CategorySection } from '../components/CategorySection';
 import { procesarArchivoExcel, validarArchivoExcel } from '../utils/fileProcessing';
-import { cargarFinalesDesdeFirebase, crearFinalEnFirebase, duplicarFinalesEnFirebase, marcarFinalComoActiva, eliminarFinalDeFirebase, obtenerFinalActiva, inicializarFinalesPredeterminadas, guardarProyectosEnFirebase, eliminarProyectosPorFinal, obtenerProyectosPorFinal, obtenerPonderaciones, guardarPonderaciones } from '../utils/firebaseOperations';
+import { cargarFinalesDesdeFirebase, crearFinalEnFirebase, duplicarFinalesEnFirebase, marcarFinalComoActiva, eliminarFinalDeFirebase, obtenerFinalActiva, inicializarFinalesPredeterminadas, guardarProyectosEnFirebase, eliminarProyectosPorFinal, obtenerProyectosPorFinal, obtenerPonderaciones, guardarPonderaciones, obtenerCategoriasPersonalizadas, guardarCategoriasPersonalizadas } from '../utils/firebaseOperations';
+
+const CATEGORIAS_DEFECTO = [
+    { id: 'chispeza',        nombre: 'Chispeza',        emoji: '💡', color: '#ffc64c', textColor: '#000' },
+    { id: 'sandia-cala',     nombre: 'Sandía Calá',     emoji: '🍉', color: '#28aa1d', textColor: '#fff' },
+    { id: 'mejora-continua', nombre: 'Mejora Continua', emoji: '📈', color: '#a114c4', textColor: '#fff' },
+    { id: 'pinta-pa-bueno',  nombre: "Pinta Pa' Bueno", emoji: '🖌️', color: '#f96703', textColor: '#fff' },
+    { id: 'eureka',          nombre: 'Eureka',          emoji: '👩🏻', color: '#2196f3', textColor: '#fff' },
+];
+
+const COLORES_PALETTE = [
+    '#e53935','#d81b60','#8e24aa','#5e35b1','#3949ab','#1e88e5',
+    '#039be5','#00acc1','#00897b','#43a047','#7cb342','#c0ca33',
+    '#fdd835','#ffb300','#fb8c00','#f4511e','#6d4c41','#546e7a',
+];
 
 export default function AdminPanel() {
     // Estados principales
@@ -58,6 +72,10 @@ export default function AdminPanel() {
     });
     const [loadingPonderaciones, setLoadingPonderaciones] = useState(false);
     const [loadingSaveCategoria, setLoadingSaveCategoria] = useState(null); // Track qué categoría se está guardando
+    const [nuevoCriterioNombre, setNuevoCriterioNombre] = useState({});
+    const [categoriasConfig, setCategoriasConfig] = useState(CATEGORIAS_DEFECTO);
+    const [nuevaCategoria, setNuevaCategoria] = useState({ nombre: '', color: '#1e88e5', emoji: '🏷️' });
+    const [loadingCrearCategoria, setLoadingCrearCategoria] = useState(false);
 
     const fileInputRef = useRef(null);
 
@@ -293,17 +311,14 @@ export default function AdminPanel() {
     };
 
     // Funciones para gestionar ponderaciones
-    const cargarTodasLasPonderaciones = async () => {
+    const cargarTodasLasPonderaciones = async (cats) => {
         setLoadingPonderaciones(true);
         try {
-            const categorias = ['chispeza', 'sandia-cala', 'mejora-continua', 'pinta-pa-bueno', 'eureka'];
+            const lista = cats || categoriasConfig;
             const nuevasPonderaciones = {};
-            
-            for (const categoria of categorias) {
-                const ponderacion = await obtenerPonderaciones(categoria);
-                nuevasPonderaciones[categoria] = ponderacion;
+            for (const cat of lista) {
+                nuevasPonderaciones[cat.id] = await obtenerPonderaciones(cat.id);
             }
-            
             setPonderaciones(nuevasPonderaciones);
         } catch (error) {
             mostrarNotificacion('Error al cargar ponderaciones', 'error');
@@ -324,12 +339,8 @@ export default function AdminPanel() {
 
     const calcularSumaPonderaciones = (categoria) => {
         const pond = ponderaciones[categoria];
-        if (!pond) return 0; // Validación de seguridad
-        // Chispeza tiene campos diferentes (5 campos con IMPACTO)
-        const camposValidos = categoria === 'chispeza'
-            ? ['DESAFIO', 'CREATIVIDAD', 'IMPLEMENTABILIDAD', 'ESCALABILIDAD', 'IMPACTO']
-            : ['DESAFIO', 'CREATIVIDAD', 'IMPLEMENTABILIDAD', 'ESCALABILIDAD', 'EBITDA', 'PRODUCTIVIDAD'];
-        return camposValidos.reduce((sum, campo) => sum + (Number(pond[campo]) || 0), 0);
+        if (!pond) return 0;
+        return Object.values(pond).reduce((sum, val) => sum + (Number(val) || 0), 0);
     };
 
     const guardarPonderacionesCategoria = async (categoria) => {
@@ -351,11 +362,88 @@ export default function AdminPanel() {
         }
     };
 
+    const agregarCriterio = (categoria, nombre) => {
+        const nombreLimpio = nombre.trim().toUpperCase();
+        if (!nombreLimpio || ponderaciones[categoria]?.[nombreLimpio] !== undefined) return;
+        setPonderaciones(prev => ({
+            ...prev,
+            [categoria]: { ...prev[categoria], [nombreLimpio]: 0 }
+        }));
+        setNuevoCriterioNombre(prev => ({ ...prev, [categoria]: '' }));
+    };
+
+    const eliminarCriterio = (categoria, nombre) => {
+        if (Object.keys(ponderaciones[categoria] || {}).length <= 1) return;
+        const { [nombre]: _, ...resto } = ponderaciones[categoria];
+        setPonderaciones(prev => ({ ...prev, [categoria]: resto }));
+    };
+
+    const calcularTextColor = (hex) => {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5 ? '#000' : '#fff';
+    };
+
+    const generarId = (nombre) =>
+        nombre.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+            .replace(/[\s']+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+    const inicializarPanel = async () => {
+        let cats = CATEGORIAS_DEFECTO;
+        try {
+            const personalizadas = await obtenerCategoriasPersonalizadas();
+            if (personalizadas.length > 0) {
+                const idsDefecto = new Set(CATEGORIAS_DEFECTO.map(c => c.id));
+                const soloNuevas = personalizadas.filter(c => !idsDefecto.has(c.id));
+                cats = [...CATEGORIAS_DEFECTO, ...soloNuevas];
+                setCategoriasConfig(cats);
+            }
+        } catch (_) {}
+        cargarTodasLasPonderaciones(cats);
+    };
+
+    const crearCategoria = async () => {
+        const nombre = nuevaCategoria.nombre.trim();
+        if (!nombre) return;
+
+        const id = generarId(nombre);
+        if (categoriasConfig.some(c => c.id === id)) {
+            mostrarNotificacion('Ya existe una categoría con ese nombre', 'error');
+            return;
+        }
+
+        const nuevaCat = {
+            id,
+            nombre,
+            emoji: nuevaCategoria.emoji.trim() || '🏷️',
+            color: nuevaCategoria.color,
+            textColor: calcularTextColor(nuevaCategoria.color),
+        };
+
+        setLoadingCrearCategoria(true);
+        try {
+            const idsDefecto = new Set(CATEGORIAS_DEFECTO.map(c => c.id));
+            const personalizadasActuales = categoriasConfig.filter(c => !idsDefecto.has(c.id));
+            await guardarCategoriasPersonalizadas([...personalizadasActuales, nuevaCat]);
+
+            const nuevasCategorias = [...categoriasConfig, nuevaCat];
+            setCategoriasConfig(nuevasCategorias);
+            setPonderaciones(prev => ({ ...prev, [id]: {} }));
+            setNuevaCategoria({ nombre: '', color: '#1e88e5', emoji: '🏷️' });
+            mostrarNotificacion(`Categoría "${nombre}" creada exitosamente`, 'success');
+        } catch (error) {
+            mostrarNotificacion('Error al crear la categoría', 'error');
+        } finally {
+            setLoadingCrearCategoria(false);
+        }
+    };
+
     // Cargar finales y final activa al montar el componente
     useEffect(() => {
         cargarFinales();
         cargarFinalActiva();
-        cargarTodasLasPonderaciones();
+        inicializarPanel();
     }, []);
 
     // Ajustar el año del filtro cuando cambia la final activa
@@ -1092,428 +1180,173 @@ export default function AdminPanel() {
                                 </Box>
                             ) : (
                                 <Stack spacing={3}>
-                                    {/* Chispeza */}
-                                    <Paper sx={{ p: 3 }}>
-                                        <Typography variant="h6" sx={{ mb: 2.5, fontWeight: 600, color: '#ffc64c' }}>
-                                            💡 Chispeza
-                                        </Typography>
-                                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2 }}>
-                                            <TextField
-                                                label="DESAFÍO"
-                                                type="number"
-                                                value={ponderaciones['chispeza']?.DESAFIO || 0}
-                                                onChange={(e) => actualizarPonderacion('chispeza', 'DESAFIO', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="CREATIVIDAD"
-                                                type="number"
-                                                value={ponderaciones['chispeza']?.CREATIVIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('chispeza', 'CREATIVIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="IMPLEMENTABILIDAD"
-                                                type="number"
-                                                value={ponderaciones['chispeza']?.IMPLEMENTABILIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('chispeza', 'IMPLEMENTABILIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="ESCALABILIDAD"
-                                                type="number"
-                                                value={ponderaciones['chispeza']?.ESCALABILIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('chispeza', 'ESCALABILIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="IMPACTO"
-                                                type="number"
-                                                value={ponderaciones['chispeza']?.IMPACTO || 0}
-                                                onChange={(e) => actualizarPonderacion('chispeza', 'IMPACTO', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                        </Box>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 3 }}>
-                                            <Typography variant="body2" sx={{ 
-                                                color: calcularSumaPonderaciones('chispeza') === 100 ? '#ffc64c' : 'error.main',
-                                                fontWeight: 600 
-                                            }}>
-                                                Total: {calcularSumaPonderaciones('chispeza')}% 
-                                                {calcularSumaPonderaciones('chispeza') !== 100 && ' ⚠️ Debe sumar 100%'}
-                                            </Typography>
-                                            <Button 
-                                                variant="contained" 
-                                                size="small"
-                                                onClick={() => guardarPonderacionesCategoria('chispeza')}
-                                                disabled={calcularSumaPonderaciones('chispeza') !== 100 || loadingSaveCategoria === 'chispeza'}
-                                                startIcon={loadingSaveCategoria === 'chispeza' ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : null}
-                                                sx={{
-                                                    bgcolor: '#ffc64c',
-                                                    color: '#000',
-                                                    '&:hover': { bgcolor: '#e6b344' },
-                                                    '&:disabled': { bgcolor: 'grey.300' }
-                                                }}
-                                            >
-                                                {loadingSaveCategoria === 'chispeza' ? 'Guardando...' : 'Guardar'}
-                                            </Button>
-                                        </Box>
-                                    </Paper>
+                                    {categoriasConfig.map(cat => {
+                                        const criterios = ponderaciones[cat.id] || {};
+                                        const suma = calcularSumaPonderaciones(cat.id);
+                                        return (
+                                            <Paper key={cat.id} sx={{ p: 3 }}>
+                                                <Typography variant="h6" sx={{ mb: 2.5, fontWeight: 600, color: cat.color }}>
+                                                    {cat.emoji} {cat.nombre}
+                                                </Typography>
 
-                                    {/* Sandía Calá */}
-                                    <Paper sx={{ p: 3 }}>
-                                        <Typography variant="h6" sx={{ mb: 2.5, fontWeight: 600, color: '#28aa1d' }}>
-                                            🍉 Sandía Calá
-                                        </Typography>
-                                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2 }}>
-                                            <TextField
-                                                label="DESAFÍO"
-                                                type="number"
-                                                value={ponderaciones['sandia-cala']?.DESAFIO || 0}
-                                                onChange={(e) => actualizarPonderacion('sandia-cala', 'DESAFIO', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="CREATIVIDAD"
-                                                type="number"
-                                                value={ponderaciones['sandia-cala']?.CREATIVIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('sandia-cala', 'CREATIVIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="IMPLEMENTABILIDAD"
-                                                type="number"
-                                                value={ponderaciones['sandia-cala']?.IMPLEMENTABILIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('sandia-cala', 'IMPLEMENTABILIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="ESCALABILIDAD"
-                                                type="number"
-                                                value={ponderaciones['sandia-cala']?.ESCALABILIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('sandia-cala', 'ESCALABILIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="EBITDA"
-                                                type="number"
-                                                value={ponderaciones['sandia-cala']?.EBITDA || 0}
-                                                onChange={(e) => actualizarPonderacion('sandia-cala', 'EBITDA', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="PRODUCTIVIDAD"
-                                                type="number"
-                                                value={ponderaciones['sandia-cala']?.PRODUCTIVIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('sandia-cala', 'PRODUCTIVIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                        </Box>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 3 }}>
-                                            <Typography variant="body2" sx={{ 
-                                                color: calcularSumaPonderaciones('sandia-cala') === 100 ? '#28aa1d' : 'error.main',
-                                                fontWeight: 600 
-                                            }}>
-                                                Total: {calcularSumaPonderaciones('sandia-cala')}% 
-                                                {calcularSumaPonderaciones('sandia-cala') !== 100 && ' ⚠️ Debe sumar 100%'}
-                                            </Typography>
-                                            <Button 
-                                                variant="contained" 
-                                                size="small"
-                                                onClick={() => guardarPonderacionesCategoria('sandia-cala')}
-                                                disabled={calcularSumaPonderaciones('sandia-cala') !== 100 || loadingSaveCategoria === 'sandia-cala'}
-                                                startIcon={loadingSaveCategoria === 'sandia-cala' ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : null}
-                                                sx={{
-                                                    bgcolor: '#28aa1d',
-                                                    color: '#fff',
-                                                    '&:hover': { bgcolor: '#22901a' },
-                                                    '&:disabled': { bgcolor: 'grey.300' }
-                                                }}
-                                            >
-                                                {loadingSaveCategoria === 'sandia-cala' ? 'Guardando...' : 'Guardar'}
-                                            </Button>
-                                        </Box>
-                                    </Paper>
+                                                {/* Criterios existentes */}
+                                                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2 }}>
+                                                    {Object.entries(criterios).map(([campo, valor]) => (
+                                                        <Box key={campo} sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                                                            <TextField
+                                                                label={campo}
+                                                                type="number"
+                                                                value={valor}
+                                                                onChange={(e) => actualizarPonderacion(cat.id, campo, e.target.value)}
+                                                                InputProps={{ endAdornment: '%' }}
+                                                                inputProps={{ min: 0, max: 100 }}
+                                                                size="small"
+                                                                fullWidth
+                                                            />
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => eliminarCriterio(cat.id, campo)}
+                                                                disabled={Object.keys(criterios).length <= 1}
+                                                                sx={{ color: 'error.main', flexShrink: 0 }}
+                                                            >
+                                                                <DeleteIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Box>
+                                                    ))}
+                                                </Box>
 
-                                    {/* Mejora Continua */}
-                                    <Paper sx={{ p: 3 }}>
-                                        <Typography variant="h6" sx={{ mb: 2.5, fontWeight: 600, color: '#a114c4' }}>
-                                            📈 Mejora Continua
-                                        </Typography>
-                                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2 }}>
-                                            <TextField
-                                                label="DESAFÍO"
-                                                type="number"
-                                                value={ponderaciones['mejora-continua']?.DESAFIO || 0}
-                                                onChange={(e) => actualizarPonderacion('mejora-continua', 'DESAFIO', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="CREATIVIDAD"
-                                                type="number"
-                                                value={ponderaciones['mejora-continua']?.CREATIVIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('mejora-continua', 'CREATIVIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="IMPLEMENTABILIDAD"
-                                                type="number"
-                                                value={ponderaciones['mejora-continua']?.IMPLEMENTABILIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('mejora-continua', 'IMPLEMENTABILIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="ESCALABILIDAD"
-                                                type="number"
-                                                value={ponderaciones['mejora-continua']?.ESCALABILIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('mejora-continua', 'ESCALABILIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="EBITDA"
-                                                type="number"
-                                                value={ponderaciones['mejora-continua']?.EBITDA || 0}
-                                                onChange={(e) => actualizarPonderacion('mejora-continua', 'EBITDA', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="PRODUCTIVIDAD"
-                                                type="number"
-                                                value={ponderaciones['mejora-continua']?.PRODUCTIVIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('mejora-continua', 'PRODUCTIVIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                        </Box>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 3 }}>
-                                            <Typography variant="body2" sx={{ 
-                                                color: calcularSumaPonderaciones('mejora-continua') === 100 ? '#a114c4' : 'error.main',
-                                                fontWeight: 600 
-                                            }}>
-                                                Total: {calcularSumaPonderaciones('mejora-continua')}% 
-                                                {calcularSumaPonderaciones('mejora-continua') !== 100 && ' ⚠️ Debe sumar 100%'}
-                                            </Typography>
-                                            <Button 
-                                                variant="contained" 
-                                                size="small"
-                                                onClick={() => guardarPonderacionesCategoria('mejora-continua')}
-                                                disabled={calcularSumaPonderaciones('mejora-continua') !== 100 || loadingSaveCategoria === 'mejora-continua'}
-                                                startIcon={loadingSaveCategoria === 'mejora-continua' ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : null}
-                                                sx={{
-                                                    bgcolor: '#a114c4',
-                                                    color: '#fff',
-                                                    '&:hover': { bgcolor: '#8a11a5' },
-                                                    '&:disabled': { bgcolor: 'grey.300' }
-                                                }}
-                                            >
-                                                {loadingSaveCategoria === 'mejora-continua' ? 'Guardando...' : 'Guardar'}
-                                            </Button>
-                                        </Box>
-                                    </Paper>
+                                                {/* Agregar nuevo criterio */}
+                                                <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                                                    <TextField
+                                                        label="Nuevo criterio"
+                                                        size="small"
+                                                        value={nuevoCriterioNombre[cat.id] || ''}
+                                                        onChange={(e) => setNuevoCriterioNombre(prev => ({ ...prev, [cat.id]: e.target.value }))}
+                                                        onKeyDown={(e) => e.key === 'Enter' && agregarCriterio(cat.id, nuevoCriterioNombre[cat.id] || '')}
+                                                        placeholder="Ej: RENTABILIDAD"
+                                                        sx={{ flex: 1 }}
+                                                    />
+                                                    <Button
+                                                        variant="outlined"
+                                                        size="small"
+                                                        onClick={() => agregarCriterio(cat.id, nuevoCriterioNombre[cat.id] || '')}
+                                                        disabled={!nuevoCriterioNombre[cat.id]?.trim()}
+                                                        startIcon={<PlusIcon />}
+                                                        sx={{ flexShrink: 0 }}
+                                                    >
+                                                        Agregar
+                                                    </Button>
+                                                </Box>
 
-                                    {/* Pinta Pa' Bueno */}
-                                    <Paper sx={{ p: 3 }}>
-                                        <Typography variant="h6" sx={{ mb: 2.5, fontWeight: 600, color: '#f96703' }}>
-                                            🖌️ Pinta Pa' Bueno
-                                        </Typography>
-                                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2 }}>
-                                            <TextField
-                                                label="DESAFÍO"
-                                                type="number"
-                                                value={ponderaciones['pinta-pa-bueno']?.DESAFIO || 0}
-                                                onChange={(e) => actualizarPonderacion('pinta-pa-bueno', 'DESAFIO', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="CREATIVIDAD"
-                                                type="number"
-                                                value={ponderaciones['pinta-pa-bueno']?.CREATIVIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('pinta-pa-bueno', 'CREATIVIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="IMPLEMENTABILIDAD"
-                                                type="number"
-                                                value={ponderaciones['pinta-pa-bueno']?.IMPLEMENTABILIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('pinta-pa-bueno', 'IMPLEMENTABILIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="ESCALABILIDAD"
-                                                type="number"
-                                                value={ponderaciones['pinta-pa-bueno']?.ESCALABILIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('pinta-pa-bueno', 'ESCALABILIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="EBITDA"
-                                                type="number"
-                                                value={ponderaciones['pinta-pa-bueno']?.EBITDA || 0}
-                                                onChange={(e) => actualizarPonderacion('pinta-pa-bueno', 'EBITDA', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="PRODUCTIVIDAD"
-                                                type="number"
-                                                value={ponderaciones['pinta-pa-bueno']?.PRODUCTIVIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('pinta-pa-bueno', 'PRODUCTIVIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                        </Box>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 3 }}>
-                                            <Typography variant="body2" sx={{ 
-                                                color: calcularSumaPonderaciones('pinta-pa-bueno') === 100 ? '#f96703' : 'error.main',
-                                                fontWeight: 600 
-                                            }}>
-                                                Total: {calcularSumaPonderaciones('pinta-pa-bueno')}% 
-                                                {calcularSumaPonderaciones('pinta-pa-bueno') !== 100 && ' ⚠️ Debe sumar 100%'}
-                                            </Typography>
-                                            <Button 
-                                                variant="contained" 
-                                                size="small"
-                                                onClick={() => guardarPonderacionesCategoria('pinta-pa-bueno')}
-                                                disabled={calcularSumaPonderaciones('pinta-pa-bueno') !== 100 || loadingSaveCategoria === 'pinta-pa-bueno'}
-                                                startIcon={loadingSaveCategoria === 'pinta-pa-bueno' ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : null}
-                                                sx={{
-                                                    bgcolor: '#f96703',
-                                                    color: '#fff',
-                                                    '&:hover': { bgcolor: '#d95803' },
-                                                    '&:disabled': { bgcolor: 'grey.300' }
-                                                }}
-                                            >
-                                                {loadingSaveCategoria === 'pinta-pa-bueno' ? 'Guardando...' : 'Guardar'}
-                                            </Button>
-                                        </Box>
-                                    </Paper>
+                                                {/* Total y guardar */}
+                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2 }}>
+                                                    <Typography variant="body2" sx={{
+                                                        color: suma === 100 ? cat.color : 'error.main',
+                                                        fontWeight: 600
+                                                    }}>
+                                                        Total: {suma}%
+                                                        {suma !== 100 && ' ⚠️ Debe sumar 100%'}
+                                                    </Typography>
+                                                    <Button
+                                                        variant="contained"
+                                                        size="small"
+                                                        onClick={() => guardarPonderacionesCategoria(cat.id)}
+                                                        disabled={suma !== 100 || loadingSaveCategoria === cat.id}
+                                                        startIcon={loadingSaveCategoria === cat.id ? <CircularProgress size={16} sx={{ color: cat.textColor }} /> : null}
+                                                        sx={{
+                                                            bgcolor: cat.color,
+                                                            color: cat.textColor,
+                                                            '&:hover': { bgcolor: cat.color, filter: 'brightness(0.9)' },
+                                                            '&:disabled': { bgcolor: 'grey.300' }
+                                                        }}
+                                                    >
+                                                        {loadingSaveCategoria === cat.id ? 'Guardando...' : 'Guardar'}
+                                                    </Button>
+                                                </Box>
+                                            </Paper>
+                                        );
+                                    })}
 
-                                    {/* Eureka */}
-                                    <Paper sx={{ p: 3 }}>
-                                        <Typography variant="h6" sx={{ mb: 2.5, fontWeight: 600, color: '#2196f3' }}>
-                                            👩🏻 Eureka
+                                    {/* Formulario: Nueva Categoría */}
+                                    <Paper sx={{ p: 3, border: '2px dashed', borderColor: 'divider' }}>
+                                        <Typography variant="h6" sx={{ mb: 2.5, fontWeight: 600, color: 'text.secondary' }}>
+                                            ➕ Nueva Categoría
                                         </Typography>
-                                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2 }}>
+
+                                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mb: 2 }}>
                                             <TextField
-                                                label="DESAFÍO"
-                                                type="number"
-                                                value={ponderaciones['eureka']?.DESAFIO || 0}
-                                                onChange={(e) => actualizarPonderacion('eureka', 'DESAFIO', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
+                                                label="Nombre de la categoría"
                                                 size="small"
+                                                value={nuevaCategoria.nombre}
+                                                onChange={(e) => setNuevaCategoria(prev => ({ ...prev, nombre: e.target.value }))}
+                                                placeholder="Ej: Innovación Sostenible"
+                                                fullWidth
                                             />
                                             <TextField
-                                                label="CREATIVIDAD"
-                                                type="number"
-                                                value={ponderaciones['eureka']?.CREATIVIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('eureka', 'CREATIVIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
+                                                label="Emoji"
                                                 size="small"
-                                            />
-                                            <TextField
-                                                label="IMPLEMENTABILIDAD"
-                                                type="number"
-                                                value={ponderaciones['eureka']?.IMPLEMENTABILIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('eureka', 'IMPLEMENTABILIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="ESCALABILIDAD"
-                                                type="number"
-                                                value={ponderaciones['eureka']?.ESCALABILIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('eureka', 'ESCALABILIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="EBITDA"
-                                                type="number"
-                                                value={ponderaciones['eureka']?.EBITDA || 0}
-                                                onChange={(e) => actualizarPonderacion('eureka', 'EBITDA', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
-                                            />
-                                            <TextField
-                                                label="PRODUCTIVIDAD"
-                                                type="number"
-                                                value={ponderaciones['eureka']?.PRODUCTIVIDAD || 0}
-                                                onChange={(e) => actualizarPonderacion('eureka', 'PRODUCTIVIDAD', e.target.value)}
-                                                InputProps={{ endAdornment: '%' }}
-                                                inputProps={{ min: 0, max: 100 }}
-                                                size="small"
+                                                value={nuevaCategoria.emoji}
+                                                onChange={(e) => setNuevaCategoria(prev => ({ ...prev, emoji: e.target.value }))}
+                                                placeholder="🏷️"
+                                                inputProps={{ maxLength: 4 }}
+                                                sx={{ maxWidth: 120 }}
                                             />
                                         </Box>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 3 }}>
-                                            <Typography variant="body2" sx={{ 
-                                                color: calcularSumaPonderaciones('eureka') === 100 ? '#2196f3' : 'error.main',
-                                                fontWeight: 600 
+
+                                        {/* Paleta de colores */}
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                                            Color de la categoría
+                                        </Typography>
+                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                                            {COLORES_PALETTE.map(color => (
+                                                <Box
+                                                    key={color}
+                                                    onClick={() => setNuevaCategoria(prev => ({ ...prev, color }))}
+                                                    sx={{
+                                                        width: 32,
+                                                        height: 32,
+                                                        borderRadius: '50%',
+                                                        bgcolor: color,
+                                                        cursor: 'pointer',
+                                                        border: nuevaCategoria.color === color ? '3px solid #000' : '3px solid transparent',
+                                                        outline: nuevaCategoria.color === color ? '2px solid' : 'none',
+                                                        outlineColor: color,
+                                                        outlineOffset: 2,
+                                                        transition: 'transform 0.15s',
+                                                        '&:hover': { transform: 'scale(1.2)' }
+                                                    }}
+                                                />
+                                            ))}
+                                        </Box>
+
+                                        {/* Preview */}
+                                        {nuevaCategoria.nombre.trim() && (
+                                            <Box sx={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 1,
+                                                px: 2,
+                                                py: 0.75,
+                                                borderRadius: 2,
+                                                bgcolor: nuevaCategoria.color,
+                                                color: calcularTextColor(nuevaCategoria.color),
+                                                mb: 2,
+                                                fontWeight: 600,
+                                                fontSize: 14
                                             }}>
-                                                Total: {calcularSumaPonderaciones('eureka')}% 
-                                                {calcularSumaPonderaciones('eureka') !== 100 && ' ⚠️ Debe sumar 100%'}
-                                            </Typography>
-                                            <Button 
-                                                variant="contained" 
-                                                size="small"
-                                                onClick={() => guardarPonderacionesCategoria('eureka')}
-                                                disabled={calcularSumaPonderaciones('eureka') !== 100 || loadingSaveCategoria === 'eureka'}
-                                                startIcon={loadingSaveCategoria === 'eureka' ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : null}
-                                                sx={{
-                                                    bgcolor: '#2196f3',
-                                                    color: '#fff',
-                                                    '&:hover': { bgcolor: '#1976d2' },
-                                                    '&:disabled': { bgcolor: 'grey.300' }
-                                                }}
+                                                {nuevaCategoria.emoji} {nuevaCategoria.nombre.trim()}
+                                            </Box>
+                                        )}
+
+                                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                            <Button
+                                                variant="contained"
+                                                onClick={crearCategoria}
+                                                disabled={!nuevaCategoria.nombre.trim() || loadingCrearCategoria}
+                                                startIcon={loadingCrearCategoria ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <PlusIcon />}
+                                                sx={{ bgcolor: nuevaCategoria.color, color: calcularTextColor(nuevaCategoria.color), '&:hover': { filter: 'brightness(0.9)', bgcolor: nuevaCategoria.color }, '&:disabled': { bgcolor: 'grey.300' } }}
                                             >
-                                                {loadingSaveCategoria === 'eureka' ? 'Guardando...' : 'Guardar'}
+                                                {loadingCrearCategoria ? 'Creando...' : 'Crear Categoría'}
                                             </Button>
                                         </Box>
                                     </Paper>

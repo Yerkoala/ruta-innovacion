@@ -10,7 +10,7 @@ import {
   Alert,
   CssBaseline,
 } from '@mui/material'
-import { obtenerFinalActiva, obtenerProyectosPorFinal } from './components/adminPanel/utils/firebaseOperations'
+import { obtenerFinalActiva, obtenerProyectosPorFinal, obtenerEstadoJuez, obtenerEstadosJueces, registrarJuezEvaluando } from './components/adminPanel/utils/firebaseOperations'
 
 const COLORS = {
   navy: '#001a6e',
@@ -19,12 +19,14 @@ const COLORS = {
 }
 
 function App() {
-  const [nombre, setNombre] = useState('')
+  const [juezSeleccionado, setJuezSeleccionado] = useState('')
   const [grupoSeleccionado, setGrupoSeleccionado] = useState(null)
   const [gruposDisponibles, setGruposDisponibles] = useState([])
-  const [todosLosGrupos, setTodosLosGrupos] = useState([]) // Todos los grupos del Excel
-  const [errores, setErrores] = useState({ nombre: false, seleccion: false })
+  const [juecesDisponibles, setJuecesDisponibles] = useState([])
+  const [juecesEstado, setJuecesEstado] = useState({}) // Estado de cada juez (evaluando/completado)
+  const [errores, setErrores] = useState({ seleccion: false })
   const [finalActiva, setFinalActiva] = useState(null)
+  const [proyectosCargados, setProyectosCargados] = useState([])
   const [loadingFinal, setLoadingFinal] = useState(true)
   const [loadingProyectos, setLoadingProyectos] = useState(false)
   const [snackbar, setSnackbar] = useState({ open: false, mensaje: '', severity: 'info' })
@@ -39,33 +41,11 @@ function App() {
         // Cargar proyectos para detectar grupos disponibles
         if (final?.id) {
           const proyectos = await obtenerProyectosPorFinal(final.id)
+          setProyectosCargados(proyectos)
           
           // Detectar grupos únicos
-          const gruposUnicos = [...new Set(proyectos.map(p => p.grupo).filter(Boolean))]
-          
-          // Verificar si hay grupos con nombres (contienen comas o letras)
-          const tieneGruposConNombres = gruposUnicos.some(g => 
-            String(g).includes(',') || isNaN(g)
-          )
-          
-          if (tieneGruposConNombres) {
-            // Modo Priorización: extraer nombres individuales de los grupos
-            const nombresSet = new Set()
-            gruposUnicos.forEach(grupo => {
-              const nombres = String(grupo).split(',').map(n => n.trim())
-              nombres.forEach(nombre => {
-                if (nombre) nombresSet.add(nombre)
-              })
-            })
-            const nombresUnicos = Array.from(nombresSet).sort()
-            setTodosLosGrupos(gruposUnicos) // Guardar grupos originales para filtrar proyectos
-            setGruposDisponibles(nombresUnicos) // Mostrar nombres individuales
-          } else {
-            // Modo Evaluación: grupos numéricos
-            const gruposOrdenados = gruposUnicos.sort((a, b) => Number(a) - Number(b))
-            setTodosLosGrupos(gruposOrdenados)
-            setGruposDisponibles(gruposOrdenados)
-          }
+          const gruposUnicos = [...new Set(proyectos.map(p => p.grupo).filter(Boolean))].sort()
+          setGruposDisponibles(gruposUnicos)
         }
       } catch (error) {
         console.error('Error al cargar final activa:', error)
@@ -76,59 +56,111 @@ function App() {
     cargarFinalActiva()
   }, [])
 
+  // Cargar jueces cuando se selecciona un grupo
+  useEffect(() => {
+    const cargarJuecesDeGrupo = async () => {
+      if (!grupoSeleccionado || !finalActiva?.id) {
+        setJuecesDisponibles([])
+        setJuecesEstado({})
+        return
+      }
+
+      try {
+        // Filtrar proyectos del grupo seleccionado
+        const proyectosDelGrupo = proyectosCargados.filter(p => p.grupo === grupoSeleccionado)
+        
+        // Extraer jueces únicos del campo "juez" (separado por comas)
+        const juecesSet = new Set()
+        proyectosDelGrupo.forEach(proyecto => {
+          if (proyecto.juez) {
+            const jueces = String(proyecto.juez).split(',').map(j => j.trim())
+            jueces.forEach(juez => {
+              if (juez) juecesSet.add(juez)
+            })
+          }
+        })
+        
+        const juecesUnicos = Array.from(juecesSet).sort()
+        setJuecesDisponibles(juecesUnicos)
+        
+        // Cargar estado de cada juez desde Firebase
+        const estados = await obtenerEstadosJueces(finalActiva.id)
+        const estadosMap = {}
+        estados.forEach(estado => {
+          estadosMap[estado.nombre] = estado.estado // 'evaluando' o 'completado'
+        })
+        setJuecesEstado(estadosMap)
+        
+      } catch (error) {
+        console.error('Error al cargar jueces del grupo:', error)
+      }
+    }
+
+    cargarJuecesDeGrupo()
+  }, [grupoSeleccionado, finalActiva, proyectosCargados])
+
   const handleSubmit = async () => {
     const nuevosErrores = { 
-      nombre: nombre.trim() === '',
-      seleccion: !grupoSeleccionado
+      seleccion: !grupoSeleccionado || !juezSeleccionado
     }
     
     setErrores(nuevosErrores)
-    if (Object.values(nuevosErrores).includes(true)) return
+    if (Object.values(nuevosErrores).includes(true)) {
+      setSnackbar({ open: true, mensaje: 'Debes seleccionar un grupo y un juez', severity: 'warning' })
+      return
+    }
 
     if (!finalActiva?.id) {
       setSnackbar({ open: true, mensaje: 'No hay una final activa configurada', severity: 'error' })
       return
     }
 
+    // Verificar si el juez ya está evaluando
+    if (juecesEstado[juezSeleccionado] === 'evaluando') {
+      setSnackbar({ 
+        open: true, 
+        mensaje: `El juez ${juezSeleccionado} ya está evaluando. Por favor espera a que termine.`, 
+        severity: 'warning' 
+      })
+      return
+    }
+
     setLoadingProyectos(true)
     try {
-      const todosProyectos = await obtenerProyectosPorFinal(finalActiva.id)
-      
-      // Verificar si es grupo numérico o nombre de juez
-      const esNumerico = !isNaN(grupoSeleccionado)
-      
-      let proyectosFiltrados
-      if (esNumerico) {
-        // Modo Evaluación: filtrar por grupo exacto
-        proyectosFiltrados = todosProyectos.filter(p => p.grupo === grupoSeleccionado)
-      } else {
-        // Modo Priorización: filtrar proyectos donde el grupo contenga el nombre seleccionado
-        proyectosFiltrados = todosProyectos.filter(p => {
-          const grupoProyecto = String(p.grupo || '').toLowerCase()
-          const nombreSeleccionado = String(grupoSeleccionado).toLowerCase()
-          const coincide = grupoProyecto.includes(nombreSeleccionado)
-          
-          return coincide
-        })
-      }
+      // Filtrar proyectos del grupo que contengan al juez seleccionado
+      const proyectosFiltrados = proyectosCargados.filter(p => {
+        if (p.grupo !== grupoSeleccionado) return false
+        if (!p.juez) return false
+        
+        // Verificar si el juez seleccionado está en la lista de jueces del proyecto
+        const juecesProyecto = String(p.juez).split(',').map(j => j.trim())
+        return juecesProyecto.includes(juezSeleccionado)
+      })
       
       if (proyectosFiltrados.length === 0) {
-        const mensajeGrupo = esNumerico ? `Grupo ${grupoSeleccionado}` : grupoSeleccionado
-        setSnackbar({ open: true, mensaje: `No hay proyectos asignados a ${mensajeGrupo}`, severity: 'warning' })
+        setSnackbar({ 
+          open: true, 
+          mensaje: `No hay proyectos asignados al juez ${juezSeleccionado} en ${grupoSeleccionado}`, 
+          severity: 'warning' 
+        })
         setLoadingProyectos(false)
         return
       }
       
+      // Registrar al juez como "evaluando" en Firebase
+      await registrarJuezEvaluando(finalActiva.id, juezSeleccionado, grupoSeleccionado)
+      
       navigate('/evaluacion', {
         state: { 
-          nombre, 
+          nombre: juezSeleccionado, 
           proyectos: proyectosFiltrados, 
           finalNombre: finalActiva.nombre, 
           finalId: finalActiva.id,
           grupo: grupoSeleccionado
         }
       })
-    } catch {
+    } catch (error) {
+      console.error('Error al iniciar evaluación:', error)
       setSnackbar({ open: true, mensaje: 'Error al cargar los proyectos', severity: 'error' })
       setLoadingProyectos(false)
     }
@@ -231,66 +263,30 @@ function App() {
           position: 'relative', 
           zIndex: 1,
         }}>
-          <Typography sx={{
-            color: '#555', // Gris para el label
-            fontSize: 10, fontWeight: 700,
-            letterSpacing: 1.5, textTransform: 'uppercase',
-            mb: 1,
-          }}>
-            Nombre del Jurado
-          </Typography>
-
-          <TextField
-            fullWidth
-            placeholder="Ej: María González"
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            error={errores.nombre}
-            helperText={errores.nombre ? 'El nombre es obligatorio' : ''}
-            disabled={loadingProyectos}
-            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            inputProps={{ style: { fontSize: 16 } }}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                color: '#333', // Texto oscuro
-                fontFamily: 'inherit',
-                fontWeight: 500,
-                backgroundColor: '#f8f9fa', // Fondo del input ligeramente gris
-                borderRadius: 2.5,
-                '& fieldset': { borderColor: '#d1d5db' }, // Borde del input
-                '&:hover fieldset': { borderColor: '#9ca3af' },
-                '&.Mui-focused fieldset': { borderColor: COLORS.orange, borderWidth: 1.5 },
-              },
-              '& input::placeholder': { color: '#9ca3af', opacity: 1 },
-              '& .MuiFormHelperText-root': { color: '#d32f2f', fontFamily: 'inherit' },
-            }}
-          />
-
           {/* Selector de Grupo */}
           {gruposDisponibles.length > 0 && (
-            <Box sx={{ mt: 2 }}>
+            <Box sx={{ mb: 2 }}>
               <Typography sx={{
                 color: '#555',
                 fontSize: 10, fontWeight: 700,
                 letterSpacing: 1.5, textTransform: 'uppercase',
                 mb: 1.5,
               }}>
-                {gruposDisponibles.some(g => isNaN(g)) ? 'Selecciona tu Nombre' : 'Selecciona tu Grupo'}
+                Selecciona tu Grupo
               </Typography>
               <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
                 {gruposDisponibles.map((grupo) => {
-                  // Detectar si es grupo numérico o con nombres
-                  const esNumerico = !isNaN(grupo)
-                  const labelGrupo = esNumerico ? `Grupo ${grupo}` : String(grupo)
-                  
                   return (
                     <Button
                       key={grupo}
                       variant={grupoSeleccionado === grupo ? 'contained' : 'outlined'}
-                      onClick={() => setGrupoSeleccionado(grupo)}
+                      onClick={() => {
+                        setGrupoSeleccionado(grupo)
+                        setJuezSeleccionado('') // Reset juez cuando cambia grupo
+                      }}
                       disabled={loadingProyectos}
                       sx={{
-                        minWidth: esNumerico ? 60 : 'auto',
+                        minWidth: 80,
                         py: 1.2,
                         px: 2.5,
                         borderRadius: 2,
@@ -308,7 +304,83 @@ function App() {
                         })
                       }}
                     >
-                      {labelGrupo}
+                      {grupo}
+                    </Button>
+                  )
+                })}
+              </Box>
+            </Box>
+          )}
+
+          {/* Selector de Juez - Se muestra cuando hay grupo seleccionado */}
+          {grupoSeleccionado && juecesDisponibles.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography sx={{
+                color: '#555',
+                fontSize: 10, fontWeight: 700,
+                letterSpacing: 1.5, textTransform: 'uppercase',
+                mb: 1.5,
+              }}>
+                Selecciona tu Nombre
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                {juecesDisponibles.map((juez) => {
+                  const estaEvaluando = juecesEstado[juez] === 'evaluando'
+                  const estaCompletado = juecesEstado[juez] === 'completado'
+                  
+                  return (
+                    <Button
+                      key={juez}
+                      variant={juezSeleccionado === juez ? 'contained' : 'outlined'}
+                      onClick={() => !estaEvaluando && setJuezSeleccionado(juez)}
+                      disabled={loadingProyectos || estaEvaluando}
+                      sx={{
+                        minWidth: 100,
+                        py: 1.2,
+                        px: 2.5,
+                        borderRadius: 2,
+                        fontWeight: 700,
+                        fontSize: 14,
+                        textTransform: 'none',
+                        position: 'relative',
+                        ...(estaEvaluando ? {
+                          borderColor: '#d1d5db',
+                          color: '#9ca3af',
+                          backgroundColor: '#f3f4f6',
+                          cursor: 'not-allowed',
+                          '&:hover': { backgroundColor: '#f3f4f6' },
+                        } : juezSeleccionado === juez ? {
+                          backgroundColor: COLORS.orange,
+                          color: '#fff',
+                          '&:hover': { backgroundColor: COLORS.orangeDark },
+                        } : {
+                          borderColor: '#d1d5db',
+                          color: '#555',
+                          '&:hover': { borderColor: COLORS.orange, backgroundColor: 'rgba(244,121,32,0.05)' },
+                        })
+                      }}
+                    >
+                      {juez}
+                      {estaEvaluando && (
+                        <Box component="span" sx={{ 
+                          ml: 1, 
+                          fontSize: 10, 
+                          color: '#9ca3af',
+                          fontWeight: 500
+                        }}>
+                          (evaluando)
+                        </Box>
+                      )}
+                      {estaCompletado && (
+                        <Box component="span" sx={{ 
+                          ml: 1, 
+                          fontSize: 10, 
+                          color: '#10b981',
+                          fontWeight: 500
+                        }}>
+                          ✓
+                        </Box>
+                      )}
                     </Button>
                   )
                 })}
@@ -319,7 +391,7 @@ function App() {
           {/* Mensaje de error de selección */}
           {errores.seleccion && (
             <Typography sx={{ color: '#d32f2f', fontSize: 12, mt: 1, fontFamily: 'inherit' }}>
-              Debes seleccionar un grupo
+              Debes seleccionar un grupo y un juez
             </Typography>
           )}
 

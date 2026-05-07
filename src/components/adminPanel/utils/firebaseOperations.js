@@ -242,6 +242,7 @@ export const guardarProyectosEnFirebase = async (finalId, proyectos, reemplazar 
                 problema: proyecto.Problema || '',
                 impacto: proyecto.Impacto || '',
                 grupo: proyecto.Grupo || null,
+                juez: proyecto.Juez || proyecto.juez || '', // Campo para jueces separados por coma
                 fechaCarga: new Date()
             };
 
@@ -360,5 +361,119 @@ export const guardarPonderaciones = async (categoria, ponderaciones) => {
         });
     } catch (error) {
         throw new Error('Error al guardar ponderaciones');
+    }
+};
+
+/**
+ * Obtiene las categorías personalizadas creadas por el admin
+ * @returns {Promise<Array>} Lista de categorías personalizadas
+ */
+export const obtenerCategoriasPersonalizadas = async () => {
+    try {
+        const ref = doc(db, 'config', 'categorias');
+        const snap = await getDoc(ref);
+        if (snap.exists()) return snap.data().lista || [];
+        return [];
+    } catch (error) {
+        throw new Error('Error al obtener categorías personalizadas');
+    }
+};
+
+/**
+ * Guarda las categorías personalizadas creadas por el admin
+ * @param {Array} lista - Lista de categorías personalizadas a guardar
+ */
+export const guardarCategoriasPersonalizadas = async (lista) => {
+    try {
+        const ref = doc(db, 'config', 'categorias');
+        await setDoc(ref, { lista, fechaActualizacion: new Date() });
+    } catch (error) {
+        throw new Error('Error al guardar categorías');
+    }
+};
+
+/**
+ * Obtiene el estado de un juez en una final específica
+ * @param {string} finalId - ID de la final
+ * @param {string} nombreJuez - Nombre del juez
+ * @returns {Promise<Object|null>} Estado del juez o null si no existe
+ */
+export const obtenerEstadoJuez = async (finalId, nombreJuez) => {
+    try {
+        const estadoRef = doc(db, 'finales', finalId, 'estadoJueces', nombreJuez);
+        const estadoSnap = await getDoc(estadoRef);
+        
+        if (estadoSnap.exists()) {
+            return {
+                id: estadoSnap.id,
+                ...estadoSnap.data()
+            };
+        }
+        return null;
+    } catch (error) {
+        console.error('Error al obtener estado del juez:', error);
+        return null;
+    }
+};
+
+/**
+ * Obtiene todos los estados de jueces de una final
+ * @param {string} finalId - ID de la final
+ * @returns {Promise<Array>} Array con estados de todos los jueces
+ */
+export const obtenerEstadosJueces = async (finalId) => {
+    try {
+        const estadosRef = collection(db, 'finales', finalId, 'estadoJueces');
+        const snapshot = await getDocs(estadosRef);
+        
+        return snapshot.docs.map(doc => ({
+            id: doc.id,
+            nombre: doc.id,
+            ...doc.data()
+        }));
+    } catch (error) {
+        console.error('Error al obtener estados de jueces:', error);
+        return [];
+    }
+};
+
+/**
+ * Registra que un juez comenzó a evaluar (marca como "evaluando")
+ * @param {string} finalId - ID de la final
+ * @param {string} nombreJuez - Nombre del juez
+ * @param {string} grupo - Grupo asignado al juez
+ * @returns {Promise<void>}
+ */
+export const registrarJuezEvaluando = async (finalId, nombreJuez, grupo) => {
+    try {
+        const estadoRef = doc(db, 'finales', finalId, 'estadoJueces', nombreJuez);
+        await setDoc(estadoRef, {
+            nombre: nombreJuez,
+            grupo: grupo,
+            estado: 'evaluando',
+            inicioEvaluacion: new Date(),
+            ultimaActualizacion: new Date()
+        });
+    } catch (error) {
+        throw new Error('Error al registrar el estado del juez');
+    }
+};
+
+/**
+ * Marca un juez como "completado" cuando termina de evaluar
+ * @param {string} finalId - ID de la final
+ * @param {string} nombreJuez - Nombre del juez
+ * @returns {Promise<void>}
+ */
+export const marcarJuezCompletado = async (finalId, nombreJuez) => {
+    try {
+        const estadoRef = doc(db, 'finales', finalId, 'estadoJueces', nombreJuez);
+        await updateDoc(estadoRef, {
+            estado: 'completado',
+            finEvaluacion: new Date(),
+            ultimaActualizacion: new Date()
+        });
+    } catch (error) {
+        throw new Error('Error al actualizar el estado del juez');
     }
 };

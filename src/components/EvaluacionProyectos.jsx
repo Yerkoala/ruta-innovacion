@@ -10,7 +10,7 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import WarningIcon from '@mui/icons-material/Warning'
 import CloudOffIcon from '@mui/icons-material/CloudOff'
-import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebaseconfig'
 
 // Función para normalizar strings
@@ -23,6 +23,17 @@ const normalizarTexto = (texto) => {
         .toLowerCase()
         .trim()
 }
+
+// Descripciones y opciones de criterios conocidos; criterios nuevos usan valores por defecto
+const DESCRIPCION_CRITERIOS = {
+    DESAFIO:          { descripcion: 'Evalúa el nivel de complejidad y magnitud del problema que aborda el proyecto', opciones: [1, 2, 3, 4, 5] },
+    CREATIVIDAD:      { descripcion: 'Mide la originalidad e innovación de la solución propuesta', opciones: [1, 2, 3, 4, 5] },
+    IMPLEMENTABILIDAD:{ descripcion: 'Valora la viabilidad técnica y facilidad de implementación del proyecto', opciones: [1, 2, 3, 4, 5] },
+    ESCALABILIDAD:    { descripcion: 'Evalúa el potencial de crecimiento y replicabilidad de la solución', opciones: [1, 2, 3, 4, 5] },
+    IMPACTO:          { descripcion: 'Evalúa el impacto generado en ahorro de tiempo, optimización de procesos o generación de valor económico', opciones: [1, 2, 3, 4, 5] },
+    EBITDA:           { descripcion: 'Impacto financiero del proyecto en resultados operacionales (EBITDA)', opciones: [1, 2, 3, 4, 5] },
+    PRODUCTIVIDAD:    { descripcion: 'Mejora en eficiencia de procesos y aprovechamiento de recursos.\n1 = No impacta en productividad\n3 = Genera aumento en kilos de productos o disminución de HHT\n5 = Genera reducción de FTE', opciones: [1, 3, 5] },
+};
 
 // Diccionario de estilos centralizado
 const categoriaEstilos = {
@@ -38,6 +49,7 @@ function EvaluacionProyectos() {
     const { state } = useLocation()
     const navigate = useNavigate()
     const [inputs, setInputs] = useState({})
+    const [ponderacionesPorCat, setPonderacionesPorCat] = useState({})
     const [loadingProyectoId, setLoadingProyectoId] = useState(null)
     const [enviadoProyectoId, setEnviadoProyectoId] = useState(null)
     const [intentoEnvio, setIntentoEnvio] = useState({})
@@ -116,62 +128,56 @@ function EvaluacionProyectos() {
         }
     }, [inputs, proyectosGuardadosFirebase])
 
-    // Función para obtener campos según categoría
+    // useEffect: Cargar criterios de evaluación desde Firebase para cada categoría presente
+    useEffect(() => {
+        if (proyectos.length === 0) return;
+        const categoriasUnicas = [...new Set(proyectos.map(p => normalizarTexto(p.categoria)))];
+        const cargar = async () => {
+            const resultado = {};
+            for (const catNorm of categoriasUnicas) {
+                const firebaseId = catNorm.replace(/\s+/g, '-');
+                try {
+                    const snap = await getDoc(doc(db, 'ponderaciones', firebaseId));
+                    if (snap.exists()) {
+                        const { fechaActualizacion, ...criterios } = snap.data();
+                        resultado[catNorm] = Object.keys(criterios);
+                    }
+                } catch (_) { /* usa fallback hardcodeado */ }
+            }
+            if (Object.keys(resultado).length > 0) setPonderacionesPorCat(resultado);
+        };
+        cargar();
+    }, [proyectos])
+
+    // Función para obtener campos según categoría (usa criterios de Firebase si están disponibles)
     const obtenerCamposPorCategoria = (categoria) => {
         const catNormalizada = normalizarTexto(categoria)
+        const criteriosDesdeFirebase = ponderacionesPorCat[catNormalizada]
 
-        // Campos base para todas las categorías
-        const camposBase = [
-            {
-                nombre: 'DESAFIO',
-                descripcion: 'Evalúa el nivel de complejidad y magnitud del problema que aborda el proyecto',
-                opciones: [1, 2, 3, 4, 5]
-            },
-            {
-                nombre: 'CREATIVIDAD',
-                descripcion: 'Mide la originalidad e innovación de la solución propuesta',
-                opciones: [1, 2, 3, 4, 5]
-            },
-            {
-                nombre: 'IMPLEMENTABILIDAD',
-                descripcion: 'Valora la viabilidad técnica y facilidad de implementación del proyecto',
-                opciones: [1, 2, 3, 4, 5]
-            },
-            {
-                nombre: 'ESCALABILIDAD',
-                descripcion: 'Evalúa el potencial de crecimiento y replicabilidad de la solución',
-                opciones: [1, 2, 3, 4, 5]
-            }
-        ]
-
-        // Chispeza tiene campo IMPACTO en lugar de EBITDA y PRODUCTIVIDAD
-        if (catNormalizada === 'chispeza') {
-            return [
-                ...camposBase,
-                {
-                    nombre: 'IMPACTO',
-                    descripcion: 'Evalúa el impacto generado en ahorro de tiempo, optimización de procesos o generación de valor económico',
-                    opciones: [1, 2, 3, 4, 5]
-                }
-            ]
+        if (criteriosDesdeFirebase && criteriosDesdeFirebase.length > 0) {
+            return criteriosDesdeFirebase.map(nombre => ({
+                nombre,
+                descripcion: DESCRIPCION_CRITERIOS[nombre]?.descripcion || `Criterio de evaluación: ${nombre}`,
+                opciones: DESCRIPCION_CRITERIOS[nombre]?.opciones || [1, 2, 3, 4, 5]
+            }))
         }
 
-        // Otras categorías tienen EBITDA y PRODUCTIVIDAD
+        // Fallback hardcodeado mientras cargan o si falla Firebase
+        const camposBase = [
+            { nombre: 'DESAFIO',           descripcion: DESCRIPCION_CRITERIOS.DESAFIO.descripcion,           opciones: [1, 2, 3, 4, 5] },
+            { nombre: 'CREATIVIDAD',       descripcion: DESCRIPCION_CRITERIOS.CREATIVIDAD.descripcion,       opciones: [1, 2, 3, 4, 5] },
+            { nombre: 'IMPLEMENTABILIDAD', descripcion: DESCRIPCION_CRITERIOS.IMPLEMENTABILIDAD.descripcion, opciones: [1, 2, 3, 4, 5] },
+            { nombre: 'ESCALABILIDAD',     descripcion: DESCRIPCION_CRITERIOS.ESCALABILIDAD.descripcion,     opciones: [1, 2, 3, 4, 5] },
+        ]
+
+        if (catNormalizada === 'chispeza') {
+            return [...camposBase, { nombre: 'IMPACTO', descripcion: DESCRIPCION_CRITERIOS.IMPACTO.descripcion, opciones: [1, 2, 3, 4, 5] }]
+        }
+
         return [
             ...camposBase,
-            {
-                nombre: 'EBITDA',
-                descripcion: 'Impacto financiero del proyecto en resultados operacionales (EBITDA)',
-                opciones: [1, 2, 3, 4, 5]
-            },
-            {
-                nombre: 'PRODUCTIVIDAD',
-                descripcion: `Mejora en eficiencia de procesos y aprovechamiento de recursos.
-                                1 = No impacta en productividad
-                                3 = Genera aumento en kilos de productos o disminución de HHT
-                                5 = Genera reducción de FTE`,
-                opciones: [1, 3, 5]
-            }
+            { nombre: 'EBITDA',       descripcion: DESCRIPCION_CRITERIOS.EBITDA.descripcion,       opciones: [1, 2, 3, 4, 5] },
+            { nombre: 'PRODUCTIVIDAD', descripcion: DESCRIPCION_CRITERIOS.PRODUCTIVIDAD.descripcion, opciones: [1, 3, 5] },
         ]
     }
 

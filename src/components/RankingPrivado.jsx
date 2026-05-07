@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, query, where, collectionGroup } from 'firebase/firestore';
+import { collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebaseconfig';
+import { obtenerEstadosJueces } from './adminPanel/utils/firebaseOperations';
 import { 
   Box, 
   Container, 
@@ -109,11 +110,32 @@ export default function RankingPrivado() {
   const [ponderaciones, setPonderaciones] = useState({});
   const [loading, setLoading] = useState(true);
   const [grupos, setGrupos] = useState([]);
+  const [juecesEsperadosPorProyecto, setJuecesEsperadosPorProyecto] = useState({}); // Mapa de proyectoId -> [jueces esperados]
 
   // Cargar datos de Firebase
   useEffect(() => {
     cargarDatosRanking();
   }, []);
+
+  // Escuchar cambios en tiempo real de evaluaciones
+  useEffect(() => {
+    if (!finalActiva?.id) return;
+
+    const evaluacionesRef = collection(db, 'evaluaciones');
+    const qEvaluaciones = query(evaluacionesRef, where('finalId', '==', finalActiva.id));
+    
+    // Suscripción en tiempo real
+    const unsubscribe = onSnapshot(qEvaluaciones, (snapshot) => {
+      const evaluacionesData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setEvaluaciones(evaluacionesData);
+    });
+
+    // Cleanup al desmontar
+    return () => unsubscribe();
+  }, [finalActiva]);
 
   const cargarDatosRanking = async () => {
     setLoading(true);
@@ -149,13 +171,25 @@ export default function RankingPrivado() {
       const gruposUnicos = [...new Set(proyectosData.map(p => p.grupo).filter(Boolean))].sort();
       setGrupos(gruposUnicos);
 
+      // Extraer jueces esperados por PROYECTO (no por grupo)
+      const juecesEsperadosPorProyectoMap = {};
+      proyectosData.forEach(proyecto => {
+        if (proyecto.juez) {
+          const jueces = String(proyecto.juez).split(',').map(j => j.trim()).filter(Boolean);
+          juecesEsperadosPorProyectoMap[proyecto.id] = jueces;
+        } else {
+          juecesEsperadosPorProyectoMap[proyecto.id] = [];
+        }
+      });
+      setJuecesEsperadosPorProyecto(juecesEsperadosPorProyectoMap);
+
       // Inicializar categorías expandidas
       const categoriasUnicas = [...new Set(proyectosData.map(p => normalizarTexto(p.categoria)))];
       const expandedInit = {};
       categoriasUnicas.forEach(cat => { expandedInit[cat] = true; });
       setExpandedCategories(expandedInit);
 
-      // 3. Obtener evaluaciones de la final activa desde colección plana
+      // 3. Obtener evaluaciones iniciales (luego se actualizan en tiempo real)
       const evaluacionesRef = collection(db, 'evaluaciones');
       const qEvaluaciones = query(evaluacionesRef, where('finalId', '==', finalActivaDoc.id));
       const evaluacionesSnapshot = await getDocs(qEvaluaciones);
@@ -188,22 +222,17 @@ export default function RankingPrivado() {
     const ponderacionId = categoriaToPonderacionId(catNormalizada);
     const ponderacion = ponderaciones[ponderacionId] || {};
     
-    // Calcular promedio de cada campo
-    const campos = ['DESAFIO', 'CREATIVIDAD', 'IMPLEMENTABILIDAD', 'ESCALABILIDAD'];
-    
-    // Determinar si usa IMPACTO o EBITDA/PRODUCTIVIDAD
-    if (catNormalizada === 'chispeza') {
-      campos.push('IMPACTO');
-    } else {
-      campos.push('EBITDA', 'PRODUCTIVIDAD');
-    }
+    // Obtener campos dinámicamente desde las ponderaciones de Firebase
+    const campos = Object.keys(ponderacion).filter(key => 
+      key !== 'fechaActualizacion' && typeof ponderacion[key] === 'number'
+    );
 
     let notaFinal = 0;
 
     campos.forEach(campo => {
       const valor = evaluacion.calificaciones?.[campo];
       if (valor !== undefined && valor !== null) {
-        const peso = ponderacion[campo] !== undefined ? ponderacion[campo] : (100 / campos.length);
+        const peso = ponderacion[campo];
         const notaPonderada = (Number(valor) * peso) / 100;
         notaFinal += notaPonderada;
       }
@@ -222,15 +251,10 @@ export default function RankingPrivado() {
     const ponderacionId = categoriaToPonderacionId(catNormalizada);
     const ponderacion = ponderaciones[ponderacionId] || {};
     
-    // Calcular promedio de cada campo
-    const campos = ['DESAFIO', 'CREATIVIDAD', 'IMPLEMENTABILIDAD', 'ESCALABILIDAD'];
-    
-    // Determinar si usa IMPACTO o EBITDA/PRODUCTIVIDAD
-    if (catNormalizada === 'chispeza') {
-      campos.push('IMPACTO');
-    } else {
-      campos.push('EBITDA', 'PRODUCTIVIDAD');
-    }
+    // Obtener campos dinámicamente desde las ponderaciones de Firebase
+    const campos = Object.keys(ponderacion).filter(key => 
+      key !== 'fechaActualizacion' && typeof ponderacion[key] === 'number'
+    );
 
     let notaFinal = 0;
     const detallesCampos = {};
@@ -242,8 +266,7 @@ export default function RankingPrivado() {
       
       if (valoresCampo.length > 0) {
         const promedioCampo = valoresCampo.reduce((sum, val) => sum + Number(val), 0) / valoresCampo.length;
-        // Usar ponderación de Firebase o peso igualmente distribuido si no existe
-        const peso = ponderacion[campo] !== undefined ? ponderacion[campo] : (100 / campos.length);
+        const peso = ponderacion[campo];
         const notaPonderada = (promedioCampo * peso) / 100;
         
         detallesCampos[campo] = {
@@ -578,7 +601,7 @@ export default function RankingPrivado() {
                                 <Typography variant="body1" fontWeight={700} sx={{ color: COLORS.navy, mb: 0.5 }}>
                                   #{proyecto.numero} - {proyecto.proyecto}
                                 </Typography>
-                                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
                                   <Typography variant="caption" color="text.secondary">
                                     <strong>Líder:</strong> {proyecto.lider}
                                   </Typography>
@@ -590,6 +613,42 @@ export default function RankingPrivado() {
                                       <strong>Grupo:</strong> {proyecto.grupo}
                                     </Typography>
                                   )}
+                                  
+                                  {/* Estado de Evaluación del Proyecto */}
+                                  {juecesEsperadosPorProyecto[proyecto.id] && juecesEsperadosPorProyecto[proyecto.id].length > 0 && (() => {
+                                    const totalEsperados = juecesEsperadosPorProyecto[proyecto.id].length;
+                                    const totalEvaluados = proyecto.resultado?.cantidadEvaluaciones || 0;
+                                    const estaCompleto = totalEvaluados >= totalEsperados;
+                                    
+                                    return (
+                                      <Box sx={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: 0.5,
+                                        px: 1.5,
+                                        py: 0.5,
+                                        bgcolor: estaCompleto ? 'rgba(16,185,129,0.1)' : '#f3f4f6',
+                                        borderRadius: 1,
+                                        border: `1px solid ${estaCompleto ? '#10b981' : '#e5e7eb'}`
+                                      }}>
+                                        {estaCompleto ? (
+                                          <>
+                                            <Typography sx={{ fontSize: 14, color: '#10b981' }}>✓</Typography>
+                                            <Typography variant="caption" sx={{ color: '#10b981', fontWeight: 700 }}>
+                                              {totalEvaluados}/{totalEsperados} Completo
+                                            </Typography>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <PersonIcon sx={{ fontSize: 14, color: '#6b7280' }} />
+                                            <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 600 }}>
+                                              {totalEvaluados}/{totalEsperados} evaluados
+                                            </Typography>
+                                          </>
+                                        )}
+                                      </Box>
+                                    );
+                                  })()}
                                 </Box>
                               </Box>
 
@@ -626,61 +685,118 @@ export default function RankingPrivado() {
                             </Box>
 
                             {/* Detalles de Evaluaciones - Accordion interno */}
-                            {isProjectExpanded && proyecto.resultado?.evaluacionesIndividuales && (
+                            {isProjectExpanded && (
                               <Box sx={{ bgcolor: '#f8f9fa', px: 3, py: 2, borderBottom: index < proyectosCategoria.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
-                                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: COLORS.navy }}>
-                                  <PersonIcon sx={{ fontSize: 18 }} />
-                                  Evaluaciones Individuales
-                                </Typography>
-                                
-                                <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #e0e0e0' }}>
-                                  <Table size="small">
-                                    <TableHead>
-                                      <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Juez</TableCell>
-                                        <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Desafío</TableCell>
-                                        <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Creatividad</TableCell>
-                                        <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Implementabilidad</TableCell>
-                                        <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Escalabilidad</TableCell>
-                                        {normalizarTexto(proyecto.categoria) === 'chispeza' ? (
-                                          <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Impacto</TableCell>
-                                        ) : (
-                                          <>
-                                            <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>EBITDA</TableCell>
-                                            <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Productividad</TableCell>
-                                          </>
-                                        )}
-                                        <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12, bgcolor: colors.bg, color: colors.text }}>Nota Final</TableCell>
-                                      </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                      {proyecto.resultado.evaluacionesIndividuales.map((evaluacion, idx) => {
-                                        const notaEvaluacion = calcularNotaEvaluacion(evaluacion, proyecto.categoria);
+                                {/* Estado de Jueces por Proyecto */}
+                                {juecesEsperadosPorProyecto[proyecto.id] && juecesEsperadosPorProyecto[proyecto.id].length > 0 && (
+                                  <Box sx={{ mb: 3 }}>
+                                    <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1, color: COLORS.navy }}>
+                                      <PersonIcon sx={{ fontSize: 18 }} />
+                                      Estado de Jueces
+                                    </Typography>
+                                    
+                                    <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                                      {juecesEsperadosPorProyecto[proyecto.id].map((juez) => {
+                                        // Verificar si este juez ya evaluó este proyecto
+                                        const haEvaluado = proyecto.resultado?.evaluacionesIndividuales?.some(
+                                          e => e.jurado === juez
+                                        );
                                         
                                         return (
-                                          <TableRow key={idx} sx={{ '&:hover': { bgcolor: '#fafafa' } }}>
-                                            <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{evaluacion.jurado || 'Sin nombre'}</TableCell>
-                                            <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.DESAFIO || '-'}</TableCell>
-                                            <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.CREATIVIDAD || '-'}</TableCell>
-                                            <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.IMPLEMENTABILIDAD || '-'}</TableCell>
-                                            <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.ESCALABILIDAD || '-'}</TableCell>
-                                            {normalizarTexto(proyecto.categoria) === 'chispeza' ? (
-                                              <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.IMPACTO || '-'}</TableCell>
-                                            ) : (
-                                              <>
-                                                <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.EBITDA || '-'}</TableCell>
-                                                <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.PRODUCTIVIDAD || '-'}</TableCell>
-                                              </>
-                                            )}
-                                            <TableCell align="center" sx={{ fontWeight: 700, fontSize: 14, bgcolor: colors.bg, color: colors.text }}>
-                                              {notaEvaluacion.toFixed(2)}
-                                            </TableCell>
-                                          </TableRow>
+                                          <Box
+                                            key={juez}
+                                            sx={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: 0.75,
+                                              px: 1.5,
+                                              py: 0.75,
+                                              bgcolor: haEvaluado ? 'rgba(16,185,129,0.1)' : '#fff',
+                                              border: `1px solid ${haEvaluado ? '#10b981' : '#e5e7eb'}`,
+                                              borderRadius: 1.5,
+                                              minWidth: 100
+                                            }}
+                                          >
+                                            <Typography sx={{ fontSize: 14 }}>
+                                              {haEvaluado ? '✓' : '⏳'}
+                                            </Typography>
+                                            <Typography 
+                                              variant="caption" 
+                                              fontWeight={600} 
+                                              sx={{ color: haEvaluado ? '#10b981' : '#6b7280' }}
+                                            >
+                                              {juez}
+                                            </Typography>
+                                          </Box>
                                         );
                                       })}
-                                    </TableBody>
-                                  </Table>
-                                </TableContainer>
+                                    </Box>
+                                  </Box>
+                                )}
+
+                                {/* Tabla de Evaluaciones */}
+                                {proyecto.resultado?.evaluacionesIndividuales && proyecto.resultado.evaluacionesIndividuales.length > 0 ? (
+                                  <>
+                                    <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: COLORS.navy }}>
+                                      Evaluaciones Individuales
+                                    </Typography>
+                                    
+                                    <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #e0e0e0' }}>
+                                      <Table size="small">
+                                        <TableHead>
+                                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                                            <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Juez</TableCell>
+                                            <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Desafío</TableCell>
+                                            <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Creatividad</TableCell>
+                                            <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Implementabilidad</TableCell>
+                                            <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Escalabilidad</TableCell>
+                                            {normalizarTexto(proyecto.categoria) === 'chispeza' ? (
+                                              <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Impacto</TableCell>
+                                            ) : (
+                                              <>
+                                                <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>EBITDA</TableCell>
+                                                <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Productividad</TableCell>
+                                              </>
+                                            )}
+                                            <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12, bgcolor: colors.bg, color: colors.text }}>Nota Final</TableCell>
+                                          </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                          {proyecto.resultado.evaluacionesIndividuales.map((evaluacion, idx) => {
+                                            const notaEvaluacion = calcularNotaEvaluacion(evaluacion, proyecto.categoria);
+                                            
+                                            return (
+                                              <TableRow key={idx} sx={{ '&:hover': { bgcolor: '#fafafa' } }}>
+                                                <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>{evaluacion.jurado || 'Sin nombre'}</TableCell>
+                                                <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.DESAFIO || '-'}</TableCell>
+                                                <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.CREATIVIDAD || '-'}</TableCell>
+                                                <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.IMPLEMENTABILIDAD || '-'}</TableCell>
+                                                <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.ESCALABILIDAD || '-'}</TableCell>
+                                                {normalizarTexto(proyecto.categoria) === 'chispeza' ? (
+                                                  <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.IMPACTO || '-'}</TableCell>
+                                                ) : (
+                                                  <>
+                                                    <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.EBITDA || '-'}</TableCell>
+                                                    <TableCell align="center" sx={{ fontSize: 13 }}>{evaluacion.calificaciones?.PRODUCTIVIDAD || '-'}</TableCell>
+                                                  </>
+                                                )}
+                                                <TableCell align="center" sx={{ fontWeight: 700, fontSize: 14, bgcolor: colors.bg, color: colors.text }}>
+                                                  {notaEvaluacion.toFixed(2)}
+                                                </TableCell>
+                                              </TableRow>
+                                            );
+                                          })}
+                                        </TableBody>
+                                      </Table>
+                                    </TableContainer>
+                                  </>
+                                ) : (
+                                  <Box sx={{ textAlign: 'center', py: 3, bgcolor: '#fff', borderRadius: 1, border: '1px solid #e5e7eb' }}>
+                                    <Typography variant="body2" color="text.secondary">
+                                      Aún no hay evaluaciones registradas para este proyecto
+                                    </Typography>
+                                  </Box>
+                                )}
                               </Box>
                             )}
                           </Box>

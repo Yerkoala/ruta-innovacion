@@ -31,6 +31,7 @@ export const procesarArchivoExcel = (file) => {
                     Problema: row['Problema'] || row['problema'] || '',
                     Impacto: row['Impacto'] || row['impacto'] || '',
                     Grupo: row['Grupo'] || row['grupo'] || null,
+                    Juez: row['Juez'] || row['juez'] || '', // Campo para jueces separados por coma
                 }));
 
                 resolve(mapped);

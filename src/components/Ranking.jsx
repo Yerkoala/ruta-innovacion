@@ -183,15 +183,10 @@ export default function Ranking() {
     const ponderacionId = categoriaToPonderacionId(catNormalizada);
     const ponderacion = ponderaciones[ponderacionId] || {};
     
-    // Calcular promedio de cada campo
-    const campos = ['DESAFIO', 'CREATIVIDAD', 'IMPLEMENTABILIDAD', 'ESCALABILIDAD'];
-    
-    // Determinar si usa IMPACTO o EBITDA/PRODUCTIVIDAD
-    if (catNormalizada === 'chispeza') {
-      campos.push('IMPACTO');
-    } else {
-      campos.push('EBITDA', 'PRODUCTIVIDAD');
-    }
+    // Obtener campos dinámicamente desde las ponderaciones de Firebase
+    const campos = Object.keys(ponderacion).filter(key => 
+      key !== 'fechaActualizacion' && typeof ponderacion[key] === 'number'
+    );
 
     let notaFinal = 0;
     const detallesCampos = {};
@@ -203,8 +198,7 @@ export default function Ranking() {
       
       if (valoresCampo.length > 0) {
         const promedioCampo = valoresCampo.reduce((sum, val) => sum + Number(val), 0) / valoresCampo.length;
-        // Usar ponderación de Firebase o peso igualmente distribuido si no existe
-        const peso = ponderacion[campo] !== undefined ? ponderacion[campo] : (100 / campos.length);
+        const peso = ponderacion[campo];
         const notaPonderada = (promedioCampo * peso) / 100;
         
         detallesCampos[campo] = {
