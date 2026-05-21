@@ -1,5 +1,5 @@
 ﻿import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { Box, Button, Typography, Select, MenuItem, FormControl, InputLabel, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Alert, Stack, LinearProgress, ThemeProvider, CssBaseline, Accordion, AccordionSummary, AccordionDetails, TextField, Dialog, DialogTitle, DialogContent, DialogActions, IconButton, Snackbar, CircularProgress } from '@mui/material';
+import { Box, Button, Typography, Select, MenuItem, FormControl, InputLabel, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Alert, Stack, LinearProgress, ThemeProvider, CssBaseline, Accordion, AccordionSummary, AccordionDetails, TextField, Dialog, DialogTitle, DialogContent, DialogActions, IconButton, Snackbar, CircularProgress, Switch, FormControlLabel } from '@mui/material';
 import * as XLSX from 'xlsx';
 
 // Imports locales
@@ -7,7 +7,7 @@ import { theme } from '../const/theme';
 import { UploadIcon, CheckIcon, PlusIcon, ExpandMoreIcon, SettingsIcon, DeleteIcon, CopyIcon, StepBadge } from '../components/Icons';
 import { CategorySection } from '../components/CategorySection';
 import { procesarArchivoExcel, validarArchivoExcel } from '../utils/fileProcessing';
-import { cargarFinalesDesdeFirebase, crearFinalEnFirebase, duplicarFinalesEnFirebase, marcarFinalComoActiva, eliminarFinalDeFirebase, obtenerFinalActiva, inicializarFinalesPredeterminadas, guardarProyectosEnFirebase, eliminarProyectosPorFinal, obtenerProyectosPorFinal, obtenerPonderaciones, guardarPonderaciones, obtenerCategoriasPersonalizadas, guardarCategoriasPersonalizadas } from '../utils/firebaseOperations';
+import { cargarFinalesDesdeFirebase, crearFinalEnFirebase, duplicarFinalesEnFirebase, marcarFinalComoActiva, eliminarFinalDeFirebase, obtenerFinalActiva, inicializarFinalesPredeterminadas, guardarProyectosEnFirebase, eliminarProyectosPorFinal, obtenerProyectosPorFinal, obtenerPonderaciones, guardarPonderaciones, obtenerCategoriasPersonalizadas, guardarCategoriasPersonalizadas, obtenerJuecesDeProyectos, suscribirseEstadosJueces, cambiarEstadoVotacionJuez } from '../utils/firebaseOperations';
 
 const CATEGORIAS_DEFECTO = [
     { id: 'chispeza',        nombre: 'Chispeza',        emoji: '💡', color: '#ffc64c', textColor: '#000' },
@@ -76,6 +76,14 @@ export default function AdminPanel() {
     const [categoriasConfig, setCategoriasConfig] = useState(CATEGORIAS_DEFECTO);
     const [nuevaCategoria, setNuevaCategoria] = useState({ nombre: '', color: '#1e88e5', emoji: '🏷️' });
     const [loadingCrearCategoria, setLoadingCrearCategoria] = useState(false);
+    const [feedbackConfig, setFeedbackConfig] = useState({}); // Config de feedback por categoría
+
+    // Estados para Gestionar Jueces
+    const [accordionJuecesExpanded, setAccordionJuecesExpanded] = useState(false);
+    const [finalSeleccionadaJueces, setFinalSeleccionadaJueces] = useState('');
+    const [juecesDisponibles, setJuecesDisponibles] = useState([]);
+    const [estadosJueces, setEstadosJueces] = useState({});
+    const [loadingJueces, setLoadingJueces] = useState(false);
 
     const fileInputRef = useRef(null);
 
@@ -316,10 +324,19 @@ export default function AdminPanel() {
         try {
             const lista = cats || categoriasConfig;
             const nuevasPonderaciones = {};
+            const nuevoFeedbackConfig = {};
             for (const cat of lista) {
-                nuevasPonderaciones[cat.id] = await obtenerPonderaciones(cat.id);
+                const data = await obtenerPonderaciones(cat.id);
+                // Separar ponderaciones de config feedback
+                const { feedbackEnabled, feedbackRequired, ...ponderacionesLimpias } = data;
+                nuevasPonderaciones[cat.id] = ponderacionesLimpias;
+                nuevoFeedbackConfig[cat.id] = {
+                    enabled: feedbackEnabled || false,
+                    required: feedbackRequired || false
+                };
             }
             setPonderaciones(nuevasPonderaciones);
+            setFeedbackConfig(nuevoFeedbackConfig);
         } catch (error) {
             mostrarNotificacion('Error al cargar ponderaciones', 'error');
         } finally {
@@ -353,13 +370,29 @@ export default function AdminPanel() {
 
         setLoadingSaveCategoria(categoria);
         try {
-            await guardarPonderaciones(categoria, ponderaciones[categoria]);
-            mostrarNotificacion('Ponderaciones guardadas correctamente', 'success');
+            const feedback = feedbackConfig[categoria] || { enabled: false, required: false };
+            const dataToSave = {
+                ...ponderaciones[categoria],
+                feedbackEnabled: feedback.enabled,
+                feedbackRequired: feedback.required
+            };
+            await guardarPonderaciones(categoria, dataToSave);
+            mostrarNotificacion('Ponderaciones y configuración guardadas correctamente', 'success');
         } catch (error) {
             mostrarNotificacion(error.message, 'error');
         } finally {
             setLoadingSaveCategoria(null);
         }
+    };
+
+    const actualizarFeedbackConfig = (categoria, field, value) => {
+        setFeedbackConfig(prev => ({
+            ...prev,
+            [categoria]: {
+                ...prev[categoria],
+                [field]: value
+            }
+        }));
     };
 
     const agregarCriterio = (categoria, nombre) => {
@@ -439,6 +472,50 @@ export default function AdminPanel() {
         }
     };
 
+    // Funciones para gestionar jueces
+    const cargarJuecesDeProyectos = async (finalId) => {
+        if (!finalId) {
+            setJuecesDisponibles([]);
+            return;
+        }
+
+        setLoadingJueces(true);
+        try {
+            // Cargar jueces únicos de los proyectos
+            const jueces = await obtenerJuecesDeProyectos(finalId);
+            setJuecesDisponibles(jueces);
+        } catch (error) {
+            mostrarNotificacion('Error al cargar jueces', 'error');
+        } finally {
+            setLoadingJueces(false);
+        }
+    };
+
+    const toggleEstadoJuez = async (nombreJuez) => {
+        if (!finalSeleccionadaJueces) return;
+
+        try {
+            const estadoActual = estadosJueces[nombreJuez];
+            const estadoVotacion = estadoActual?.estado || 'pendiente';
+            
+            // Si está "evaluando", cambiarlo a "pendiente"
+            // Si está "pendiente" o "completado", cambiarlo a "evaluando"
+            const nuevoEstado = estadoVotacion === 'evaluando' ? 'pendiente' : 'evaluando';
+
+            await cambiarEstadoVotacionJuez(finalSeleccionadaJueces, nombreJuez, nuevoEstado);
+            
+            // No necesitamos actualizar el estado local, la suscripción en tiempo real lo hará automáticamente
+            
+            const mensaje = nuevoEstado === 'evaluando' 
+                ? `${nombreJuez} marcado como "Votando"` 
+                : `${nombreJuez} puede volver a votar`;
+            
+            mostrarNotificacion(mensaje, 'success');
+        } catch (error) {
+            mostrarNotificacion(error.message, 'error');
+        }
+    };
+
     // Cargar finales y final activa al montar el componente
     useEffect(() => {
         cargarFinales();
@@ -481,6 +558,37 @@ export default function AdminPanel() {
             setProyectosGuardados([]);
         }
     }, [eventoSeleccionado]);
+
+    // Cargar lista de jueces cuando cambia la final seleccionada para gestión de jueces
+    useEffect(() => {
+        if (finalSeleccionadaJueces) {
+            cargarJuecesDeProyectos(finalSeleccionadaJueces);
+        } else {
+            setJuecesDisponibles([]);
+        }
+    }, [finalSeleccionadaJueces]);
+
+    // Suscripción en tiempo real a los estados de jueces
+    useEffect(() => {
+        if (!finalSeleccionadaJueces) {
+            setEstadosJueces({});
+            return;
+        }
+
+        // Suscribirse a cambios en tiempo real
+        const unsubscribe = suscribirseEstadosJueces(finalSeleccionadaJueces, (estados) => {
+            const estadosMap = {};
+            estados.forEach(estado => {
+                estadosMap[estado.nombre] = estado;
+            });
+            setEstadosJueces(estadosMap);
+        });
+
+        // Limpiar suscripción al desmontar
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
+    }, [finalSeleccionadaJueces]);
 
     // Funciones auxiliares
     const grupos = useMemo(() => {
@@ -1239,7 +1347,7 @@ export default function AdminPanel() {
                                                 </Box>
 
                                                 {/* Total y guardar */}
-                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2 }}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 3 }}>
                                                     <Typography variant="body2" sx={{
                                                         color: suma === 100 ? cat.color : 'error.main',
                                                         fontWeight: 600
@@ -1262,6 +1370,59 @@ export default function AdminPanel() {
                                                     >
                                                         {loadingSaveCategoria === cat.id ? 'Guardando...' : 'Guardar'}
                                                     </Button>
+                                                </Box>
+
+                                                {/* Configuración de Feedback */}
+                                                <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                                                    <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>
+                                                        📝 Configuración de Feedback
+                                                    </Typography>
+                                                    <Stack spacing={1.5}>
+                                                        <FormControlLabel
+                                                            control={
+                                                                <Switch
+                                                                    checked={feedbackConfig[cat.id]?.enabled || false}
+                                                                    onChange={(e) => actualizarFeedbackConfig(cat.id, 'enabled', e.target.checked)}
+                                                                    color="primary"
+                                                                />
+                                                            }
+                                                            label={
+                                                                <Box>
+                                                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                                        ¿Habilitar Feedback?
+                                                                    </Typography>
+                                                                    <Typography variant="caption" color="text.secondary">
+                                                                        Los jueces podrán agregar comentarios en la evaluación
+                                                                    </Typography>
+                                                                </Box>
+                                                            }
+                                                        />
+                                                        {feedbackConfig[cat.id]?.enabled && (
+                                                            <Box sx={{ pl: 4, py: 1, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                                                                <FormControlLabel
+                                                                    control={
+                                                                        <Switch
+                                                                            checked={feedbackConfig[cat.id]?.required || false}
+                                                                            onChange={(e) => actualizarFeedbackConfig(cat.id, 'required', e.target.checked)}
+                                                                            color="warning"
+                                                                        />
+                                                                    }
+                                                                    label={
+                                                                        <Box>
+                                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                                                {feedbackConfig[cat.id]?.required ? '🔒 Obligatorio' : '⭕ Opcional'}
+                                                                            </Typography>
+                                                                            <Typography variant="caption" color="text.secondary">
+                                                                                {feedbackConfig[cat.id]?.required 
+                                                                                    ? 'Los jueces deben completar el feedback para enviar'
+                                                                                    : 'Los jueces pueden omitir el feedback'}
+                                                                            </Typography>
+                                                                        </Box>
+                                                                    }
+                                                                />
+                                                            </Box>
+                                                        )}
+                                                    </Stack>
                                                 </Box>
                                             </Paper>
                                         );
@@ -1351,6 +1512,231 @@ export default function AdminPanel() {
                                         </Box>
                                     </Paper>
                                 </Stack>
+                            )}
+                        </AccordionDetails>
+                    </Accordion>
+
+                    {/* Accordion: Gestionar Jueces */}
+                    <Accordion
+                        expanded={accordionJuecesExpanded}
+                        onChange={() => {
+                            setAccordionJuecesExpanded(!accordionJuecesExpanded);
+                        }}
+                        sx={{
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                            borderRadius: '10px !important',
+                            '&:before': { display: 'none' },
+                            overflow: 'hidden'
+                        }}
+                    >
+                        <AccordionSummary
+                            expandIcon={<ExpandMoreIcon />}
+                            sx={{
+                                bgcolor: 'background.paper',
+                                borderBottom: accordionJuecesExpanded ? '1px solid' : 'none',
+                                borderColor: 'divider',
+                                '& .MuiAccordionSummary-content': { my: 1.5 }
+                            }}
+                        >
+                            <Stack direction="row" alignItems="center" spacing={2}>
+                                <Box sx={{
+                                    bgcolor: 'warning.main',
+                                    color: 'white',
+                                    borderRadius: 2,
+                                    width: 48,
+                                    height: 48,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}>
+                                    <Typography variant="h5" sx={{ fontWeight: 700 }}>👤</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                                        Gestionar Jueces
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Habilita o deshabilita jueces por final
+                                    </Typography>
+                                </Box>
+                            </Stack>
+                        </AccordionSummary>
+
+                        <AccordionDetails sx={{ p: 3, bgcolor: 'grey.50' }}>
+                            {/* Selector de Final */}
+                            <Paper sx={{ p: 3, mb: 3 }}>
+                                <Typography variant="h6" mb={2.5} sx={{ fontWeight: 600 }}>
+                                    Selecciona una Final
+                                </Typography>
+                                <FormControl fullWidth>
+                                    <InputLabel>Final</InputLabel>
+                                    <Select
+                                        value={finalSeleccionadaJueces}
+                                        label="Final"
+                                        onChange={e => setFinalSeleccionadaJueces(e.target.value)}
+                                        sx={{ borderRadius: 2 }}
+                                        disabled={finalesDisponibles.length === 0}
+                                    >
+                                        {finalesDisponibles.map((final) => (
+                                            <MenuItem key={final.id} value={final.id}>
+                                                {final.nombre} {final.anio} ({(final.tipo || 'Evaluacion') === 'Evaluacion' ? 'Evaluación' : 'Priorización'})
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+
+                                {finalSeleccionadaJueces && (
+                                    <Alert severity="info" icon={<CheckIcon />} sx={{ mt: 2, borderRadius: 2 }}>
+                                        <span>Gestionando jueces para: <strong>{finalesDisponibles.find(f => f.id === finalSeleccionadaJueces)?.nombre || ''} {finalesDisponibles.find(f => f.id === finalSeleccionadaJueces)?.anio || ''}</strong></span>
+                                    </Alert>
+                                )}
+                            </Paper>
+
+                            {/* Lista de Jueces */}
+                            {finalSeleccionadaJueces && (
+                                <Paper sx={{ p: 3 }}>
+                                    <Stack direction="row" alignItems="center" spacing={1.5} mb={2}>
+                                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                                            Lista de Jueces
+                                        </Typography>
+                                        <Box sx={{ flex: 1 }} />
+                                        {loadingJueces && <CircularProgress size={20} />}
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            onClick={() => cargarJuecesDeProyectos(finalSeleccionadaJueces)}
+                                            disabled={loadingJueces}
+                                        >
+                                            {loadingJueces ? 'Cargando...' : 'Recargar'}
+                                        </Button>
+                                    </Stack>
+
+                                    {loadingJueces ? (
+                                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                                            <LinearProgress sx={{ width: '50%' }} />
+                                        </Box>
+                                    ) : juecesDisponibles.length === 0 ? (
+                                        <Alert severity="info" sx={{ borderRadius: 2 }}>
+                                            No se encontraron jueces para esta final. Asegúrate de haber cargado proyectos con jueces asignados.
+                                        </Alert>
+                                    ) : (
+                                        <>
+                                            <Alert severity="info" icon={<CheckIcon />} sx={{ mb: 2, borderRadius: 2 }}>
+                                                <span>Se encontraron <strong>{juecesDisponibles.length} jueces</strong> en esta final</span>
+                                            </Alert>
+
+                                            <TableContainer component={Paper} sx={{ mt: 2 }}>
+                                                <Table>
+                                                    <TableHead>
+                                                        <TableRow sx={{ bgcolor: 'grey.100' }}>
+                                                            <TableCell sx={{ fontWeight: 700 }}>Juez</TableCell>
+                                                            <TableCell sx={{ fontWeight: 700 }}>Estado de Votación</TableCell>
+                                                            <TableCell align="right" sx={{ fontWeight: 700 }}>Control</TableCell>
+                                                        </TableRow>
+                                                    </TableHead>
+                                                    <TableBody>
+                                                        {juecesDisponibles.map((juez) => {
+                                                            const estado = estadosJueces[juez];
+                                                            const estadoVotacion = estado?.estado || 'pendiente';
+                                                            const estaVotando = estadoVotacion === 'evaluando';
+                                                            const estaCompletado = estadoVotacion === 'completado';
+                                                            
+                                                            return (
+                                                                <TableRow 
+                                                                    key={juez} 
+                                                                    sx={{ 
+                                                                        '&:hover': { bgcolor: 'grey.50' },
+                                                                        opacity: estaVotando ? 0.6 : 1,
+                                                                        bgcolor: estaVotando ? 'grey.100' : 'inherit'
+                                                                    }}
+                                                                >
+                                                                    <TableCell 
+                                                                        sx={{ 
+                                                                            fontWeight: 600,
+                                                                            color: estaVotando ? 'text.disabled' : 'text.primary'
+                                                                        }}
+                                                                    >
+                                                                        {juez}
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        <Stack direction="row" spacing={1} alignItems="center">
+                                                                            <Chip 
+                                                                                label={
+                                                                                    estaVotando ? 'Votando' :
+                                                                                    estaCompletado ? 'Completado' :
+                                                                                    'Pendiente'
+                                                                                }
+                                                                                size="small" 
+                                                                                color={
+                                                                                    estaVotando ? 'warning' :
+                                                                                    estaCompletado ? 'success' :
+                                                                                    'default'
+                                                                                }
+                                                                                variant={estaVotando ? 'filled' : 'outlined'}
+                                                                            />
+                                                                            {estaVotando && (
+                                                                                <Typography variant="caption" color="error.main" sx={{ fontWeight: 600 }}>
+                                                                                    🚫 Bloqueado
+                                                                                </Typography>
+                                                                            )}
+                                                                        </Stack>
+                                                                    </TableCell>
+                                                                    <TableCell align="right">
+                                                                        {estaCompletado ? (
+                                                                            <Chip 
+                                                                                label="✓ Evaluación Completa" 
+                                                                                size="small" 
+                                                                                color="success" 
+                                                                                variant="outlined"
+                                                                            />
+                                                                        ) : (
+                                                                            <FormControlLabel
+                                                                                control={
+                                                                                    <Switch 
+                                                                                        checked={estaVotando}
+                                                                                        onChange={() => toggleEstadoJuez(juez)}
+                                                                                        color={estaVotando ? 'warning' : 'success'}
+                                                                                    />
+                                                                                }
+                                                                                label={estaVotando ? 'Cambiar a Pendiente' : 'Marcar como Votando'}
+                                                                                labelPlacement="start"
+                                                                                sx={{
+                                                                                    '& .MuiFormControlLabel-label': {
+                                                                                        fontSize: 13,
+                                                                                        fontWeight: 600,
+                                                                                        color: estaVotando ? 'warning.main' : 'success.main'
+                                                                                    }
+                                                                                }}
+                                                                            />
+                                                                        )}
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            );
+                                                        })}
+                                                    </TableBody>
+                                                </Table>
+                                            </TableContainer>
+
+                                            <Alert severity="warning" icon="⚠️" sx={{ mt: 3, borderRadius: 2 }}>
+                                                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                                                    ¿Cómo funciona?
+                                                </Typography>
+                                                <Typography variant="body2">
+                                                    • Cuando un juez entra a votar, automáticamente se marca como <strong>"Votando"</strong>.
+                                                </Typography>
+                                                <Typography variant="body2">
+                                                    • Si cierra la página sin completar, queda bloqueado en estado "Votando".
+                                                </Typography>
+                                                <Typography variant="body2">
+                                                    • Usa el switch para cambiar de <strong>"Votando"</strong> a <strong>"Pendiente"</strong> y permitirle volver a entrar.
+                                                </Typography>
+                                                <Typography variant="body2" sx={{ mt: 1 }}>
+                                                    • Los jueces con estado <strong>"Completado"</strong> ya terminaron su evaluación.
+                                                </Typography>
+                                            </Alert>
+                                        </>
+                                    )}
+                                </Paper>
                             )}
                         </AccordionDetails>
                     </Accordion>

@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, query, where, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, query, where, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../firebaseconfig';
 
 /**
@@ -438,15 +438,64 @@ export const obtenerEstadosJueces = async (finalId) => {
 };
 
 /**
+ * Suscribe a cambios en tiempo real de los estados de jueces de una final
+ * @param {string} finalId - ID de la final
+ * @param {function} callback - Función que se ejecuta cuando hay cambios, recibe el array de estados
+ * @returns {function} Función para cancelar la suscripción
+ */
+export const suscribirseEstadosJueces = (finalId, callback) => {
+    try {
+        const estadosRef = collection(db, 'finales', finalId, 'estadoJueces');
+        
+        const unsubscribe = onSnapshot(estadosRef, (snapshot) => {
+            const estados = snapshot.docs.map(doc => ({
+                id: doc.id,
+                nombre: doc.id,
+                ...doc.data()
+            }));
+            callback(estados);
+        }, (error) => {
+            console.error('Error en suscripción a estados de jueces:', error);
+            callback([]);
+        });
+        
+        return unsubscribe;
+    } catch (error) {
+        console.error('Error al suscribirse a estados de jueces:', error);
+        return () => {}; // Retornar función vacía si falla
+    }
+};
+
+/**
  * Registra que un juez comenzó a evaluar (marca como "evaluando")
+ * Verifica el estado actual antes de permitir la entrada para evitar duplicados
  * @param {string} finalId - ID de la final
  * @param {string} nombreJuez - Nombre del juez
  * @param {string} grupo - Grupo asignado al juez
- * @returns {Promise<void>}
+ * @returns {Promise<{success: boolean, message: string}>} Resultado de la operación
  */
 export const registrarJuezEvaluando = async (finalId, nombreJuez, grupo) => {
     try {
         const estadoRef = doc(db, 'finales', finalId, 'estadoJueces', nombreJuez);
+        
+        // Primero verificar el estado actual del juez directamente desde Firebase
+        const estadoSnap = await getDoc(estadoRef);
+        
+        if (estadoSnap.exists()) {
+            const estadoActual = estadoSnap.data();
+            
+            // Si ya está evaluando, no permitir entrada
+            if (estadoActual.estado === 'evaluando') {
+                return {
+                    success: false,
+                    message: `${nombreJuez} ya está votando actualmente. Por favor espera o contacta al administrador.`
+                };
+            }
+            
+            // Si está en cualquier otro estado (pendiente, completado), permitir entrada y actualizar
+        }
+        
+        // Actualizar/crear el estado como "evaluando"
         await setDoc(estadoRef, {
             nombre: nombreJuez,
             grupo: grupo,
@@ -454,7 +503,13 @@ export const registrarJuezEvaluando = async (finalId, nombreJuez, grupo) => {
             inicioEvaluacion: new Date(),
             ultimaActualizacion: new Date()
         });
+        
+        return {
+            success: true,
+            message: 'Acceso permitido'
+        };
     } catch (error) {
+        console.error('Error al registrar el estado del juez:', error);
         throw new Error('Error al registrar el estado del juez');
     }
 };
@@ -475,5 +530,74 @@ export const marcarJuezCompletado = async (finalId, nombreJuez) => {
         });
     } catch (error) {
         throw new Error('Error al actualizar el estado del juez');
+    }
+};
+
+/**
+ * Obtiene la lista de jueces únicos de una final a partir de los proyectos
+ * @param {string} finalId - ID de la final
+ * @returns {Promise<Array>} Array de nombres de jueces únicos
+ */
+export const obtenerJuecesDeProyectos = async (finalId) => {
+    try {
+        const proyectosRef = collection(db, 'proyectos');
+        const q = query(proyectosRef, where('finalId', '==', finalId));
+        const snapshot = await getDocs(q);
+        
+        const juecesSet = new Set();
+        
+        snapshot.docs.forEach(doc => {
+            const proyecto = doc.data();
+            if (proyecto.juez) {
+                const jueces = String(proyecto.juez).split(',').map(j => j.trim());
+                jueces.forEach(juez => {
+                    if (juez) juecesSet.add(juez);
+                });
+            }
+        });
+        
+        return Array.from(juecesSet).sort();
+    } catch (error) {
+        console.error('Error al obtener jueces de proyectos:', error);
+        return [];
+    }
+};
+
+/**
+ * Cambia el estado de votación de un juez entre "evaluando" y "pendiente"
+ * @param {string} finalId - ID de la final
+ * @param {string} nombreJuez - Nombre del juez
+ * @param {string} nuevoEstado - Nuevo estado: 'evaluando' o 'pendiente'
+ * @returns {Promise<void>}
+ */
+export const cambiarEstadoVotacionJuez = async (finalId, nombreJuez, nuevoEstado) => {
+    try {
+        const estadoRef = doc(db, 'finales', finalId, 'estadoJueces', nombreJuez);
+        const estadoSnap = await getDoc(estadoRef);
+        
+        if (estadoSnap.exists()) {
+            // Actualizar estado existente
+            const updateData = {
+                estado: nuevoEstado,
+                ultimaActualizacion: new Date()
+            };
+            
+            // Si se cambia a pendiente, limpiar las fechas de evaluación
+            if (nuevoEstado === 'pendiente') {
+                updateData.inicioEvaluacion = null;
+                updateData.finEvaluacion = null;
+            }
+            
+            await updateDoc(estadoRef, updateData);
+        } else {
+            // Crear nuevo registro si no existe
+            await setDoc(estadoRef, {
+                nombre: nombreJuez,
+                estado: nuevoEstado,
+                ultimaActualizacion: new Date()
+            });
+        }
+    } catch (error) {
+        throw new Error('Error al cambiar el estado de votación del juez');
     }
 };

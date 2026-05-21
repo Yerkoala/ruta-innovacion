@@ -10,7 +10,7 @@ import {
   Alert,
   CssBaseline,
 } from '@mui/material'
-import { obtenerFinalActiva, obtenerProyectosPorFinal, obtenerEstadoJuez, obtenerEstadosJueces, registrarJuezEvaluando } from './components/adminPanel/utils/firebaseOperations'
+import { obtenerFinalActiva, obtenerProyectosPorFinal, obtenerEstadoJuez, suscribirseEstadosJueces, registrarJuezEvaluando } from './components/adminPanel/utils/firebaseOperations'
 
 const COLORS = {
   navy: '#001a6e',
@@ -58,7 +58,7 @@ function App() {
 
   // Cargar jueces cuando se selecciona un grupo
   useEffect(() => {
-    const cargarJuecesDeGrupo = async () => {
+    const cargarJuecesDeGrupo = () => {
       if (!grupoSeleccionado || !finalActiva?.id) {
         setJuecesDisponibles([])
         setJuecesEstado({})
@@ -83,21 +83,35 @@ function App() {
         const juecesUnicos = Array.from(juecesSet).sort()
         setJuecesDisponibles(juecesUnicos)
         
-        // Cargar estado de cada juez desde Firebase
-        const estados = await obtenerEstadosJueces(finalActiva.id)
-        const estadosMap = {}
-        estados.forEach(estado => {
-          estadosMap[estado.nombre] = estado.estado // 'evaluando' o 'completado'
-        })
-        setJuecesEstado(estadosMap)
-        
       } catch (error) {
         console.error('Error al cargar jueces del grupo:', error)
       }
     }
 
     cargarJuecesDeGrupo()
-  }, [grupoSeleccionado, finalActiva, proyectosCargados])
+  }, [grupoSeleccionado, proyectosCargados])
+
+  // Suscripción en tiempo real a los estados de jueces
+  useEffect(() => {
+    if (!finalActiva?.id) {
+      setJuecesEstado({})
+      return
+    }
+
+    // Suscribirse a cambios en tiempo real
+    const unsubscribe = suscribirseEstadosJueces(finalActiva.id, (estados) => {
+      const estadosMap = {}
+      estados.forEach(estado => {
+        estadosMap[estado.nombre] = estado // Guardamos el objeto completo
+      })
+      setJuecesEstado(estadosMap)
+    })
+
+    // Limpiar suscripción al desmontar
+    return () => {
+      if (unsubscribe) unsubscribe()
+    }
+  }, [finalActiva])
 
   const handleSubmit = async () => {
     const nuevosErrores = { 
@@ -112,16 +126,6 @@ function App() {
 
     if (!finalActiva?.id) {
       setSnackbar({ open: true, mensaje: 'No hay una final activa configurada', severity: 'error' })
-      return
-    }
-
-    // Verificar si el juez ya está evaluando
-    if (juecesEstado[juezSeleccionado] === 'evaluando') {
-      setSnackbar({ 
-        open: true, 
-        mensaje: `El juez ${juezSeleccionado} ya está evaluando. Por favor espera a que termine.`, 
-        severity: 'warning' 
-      })
       return
     }
 
@@ -147,9 +151,21 @@ function App() {
         return
       }
       
-      // Registrar al juez como "evaluando" en Firebase
-      await registrarJuezEvaluando(finalActiva.id, juezSeleccionado, grupoSeleccionado)
+      // Registrar al juez como "evaluando" en Firebase (verifica estado actual)
+      const resultado = await registrarJuezEvaluando(finalActiva.id, juezSeleccionado, grupoSeleccionado)
       
+      // Si no se permite la entrada (ya está evaluando), mostrar mensaje y detener
+      if (!resultado.success) {
+        setSnackbar({ 
+          open: true, 
+          mensaje: resultado.message, 
+          severity: 'warning' 
+        })
+        setLoadingProyectos(false)
+        return
+      }
+      
+      // Si todo está bien, navegar a la evaluación
       navigate('/evaluacion', {
         state: { 
           nombre: juezSeleccionado, 
@@ -325,8 +341,9 @@ function App() {
               </Typography>
               <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
                 {juecesDisponibles.map((juez) => {
-                  const estaEvaluando = juecesEstado[juez] === 'evaluando'
-                  const estaCompletado = juecesEstado[juez] === 'completado'
+                  const estadoJuez = juecesEstado[juez]
+                  const estaEvaluando = estadoJuez && estadoJuez.estado === 'evaluando'
+                  const estaCompletado = estadoJuez && estadoJuez.estado === 'completado'
                   
                   return (
                     <Button
@@ -348,7 +365,14 @@ function App() {
                           color: '#9ca3af',
                           backgroundColor: '#f3f4f6',
                           cursor: 'not-allowed',
+                          opacity: 0.6,
                           '&:hover': { backgroundColor: '#f3f4f6' },
+                          '&.Mui-disabled': {
+                            borderColor: '#d1d5db',
+                            color: '#9ca3af',
+                            backgroundColor: '#f3f4f6',
+                            opacity: 0.6
+                          }
                         } : juezSeleccionado === juez ? {
                           backgroundColor: COLORS.orange,
                           color: '#fff',
@@ -365,13 +389,13 @@ function App() {
                         <Box component="span" sx={{ 
                           ml: 1, 
                           fontSize: 10, 
-                          color: '#9ca3af',
+                          color: '#f59e0b',
                           fontWeight: 500
                         }}>
-                          (evaluando)
+                          (votando)
                         </Box>
                       )}
-                      {estaCompletado && (
+                      {estaCompletado && !estaEvaluando && (
                         <Box component="span" sx={{ 
                           ml: 1, 
                           fontSize: 10, 

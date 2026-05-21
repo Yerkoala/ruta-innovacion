@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Accordion, AccordionSummary, AccordionDetails, Typography, IconButton, Box, Container, FormControl, InputLabel, Select, MenuItem, Alert, Chip, Stack, Divider, Button, Paper, Tooltip, Snackbar } from '@mui/material'
+import { Accordion, AccordionSummary, AccordionDetails, Typography, IconButton, Box, Container, FormControl, InputLabel, Select, MenuItem, Alert, Chip, Stack, Divider, Button, Paper, Tooltip, Snackbar, TextField } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import SendIcon from '@mui/icons-material/Send'
 import CircularProgress from '@mui/material/CircularProgress'
@@ -49,7 +49,9 @@ function EvaluacionProyectos() {
     const { state } = useLocation()
     const navigate = useNavigate()
     const [inputs, setInputs] = useState({})
+    const [feedbacks, setFeedbacks] = useState({}) // Estado para feedbacks de cada proyecto
     const [ponderacionesPorCat, setPonderacionesPorCat] = useState({})
+    const [feedbackConfigPorCat, setFeedbackConfigPorCat] = useState({}) // Configuración de feedback por categoría
     const [loadingProyectoId, setLoadingProyectoId] = useState(null)
     const [enviadoProyectoId, setEnviadoProyectoId] = useState(null)
     const [intentoEnvio, setIntentoEnvio] = useState({})
@@ -66,10 +68,11 @@ function EvaluacionProyectos() {
     const localStorageKey = `evaluaciones_${finalId}_${nombreJurado}`.replace(/\s+/g, '-')
 
     // Guardar en localStorage (respaldo automático)
-    const guardarEnLocalStorage = (datos, guardados = {}) => {
+    const guardarEnLocalStorage = (datos, feedbacksData = {}, guardados = {}) => {
         try {
             localStorage.setItem(localStorageKey, JSON.stringify({
                 datos,
+                feedbacks: feedbacksData,
                 proyectosGuardados: guardados,
                 timestamp: new Date().toISOString(),
                 finalNombre,
@@ -85,17 +88,21 @@ function EvaluacionProyectos() {
         try {
             const guardado = localStorage.getItem(localStorageKey)
             if (guardado) {
-                const { datos, proyectosGuardados, timestamp } = JSON.parse(guardado)
+                const { datos, feedbacks: feedbacksGuardados, proyectosGuardados, timestamp } = JSON.parse(guardado)
                 // Solo recuperar si tiene menos de 7 días
                 const diasDesdeGuardado = (new Date() - new Date(timestamp)) / (1000 * 60 * 60 * 24)
                 if (diasDesdeGuardado < 7) {
-                    return { datos: datos || {}, proyectosGuardados: proyectosGuardados || {} }
+                    return { 
+                        datos: datos || {}, 
+                        feedbacks: feedbacksGuardados || {},
+                        proyectosGuardados: proyectosGuardados || {} 
+                    }
                 }
             }
         } catch (error) {
             console.error('Error al recuperar de localStorage:', error)
         }
-        return { datos: {}, proyectosGuardados: {} }
+        return { datos: {}, feedbacks: {}, proyectosGuardados: {} }
     }
 
     // Limpiar localStorage de esta evaluación
@@ -109,9 +116,10 @@ function EvaluacionProyectos() {
 
     // useEffect: Recuperar datos guardados localmente al montar
     useEffect(() => {
-        const { datos, proyectosGuardados } = recuperarDeLocalStorage()
+        const { datos, feedbacks: feedbacksGuardados, proyectosGuardados } = recuperarDeLocalStorage()
         if (datos && Object.keys(datos).length > 0) {
             setInputs(datos)
+            setFeedbacks(feedbacksGuardados || {})
             setProyectosGuardadosFirebase(proyectosGuardados)
             setSnackbar({
                 open: true,
@@ -121,30 +129,36 @@ function EvaluacionProyectos() {
         }
     }, []) // Solo al montar
 
-    // useEffect: Auto-guardar en localStorage cuando cambian los inputs o proyectosGuardadosFirebase
+    // useEffect: Auto-guardar en localStorage cuando cambian los inputs, feedbacks o proyectosGuardadosFirebase
     useEffect(() => {
         if (Object.keys(inputs).length > 0) {
-            guardarEnLocalStorage(inputs, proyectosGuardadosFirebase)
+            guardarEnLocalStorage(inputs, feedbacks, proyectosGuardadosFirebase)
         }
-    }, [inputs, proyectosGuardadosFirebase])
+    }, [inputs, feedbacks, proyectosGuardadosFirebase])
 
-    // useEffect: Cargar criterios de evaluación desde Firebase para cada categoría presente
+    // useEffect: Cargar criterios de evaluación y configuración de feedback desde Firebase para cada categoría presente
     useEffect(() => {
         if (proyectos.length === 0) return;
         const categoriasUnicas = [...new Set(proyectos.map(p => normalizarTexto(p.categoria)))];
         const cargar = async () => {
-            const resultado = {};
+            const resultadoCriterios = {};
+            const resultadoFeedback = {};
             for (const catNorm of categoriasUnicas) {
                 const firebaseId = catNorm.replace(/\s+/g, '-');
                 try {
                     const snap = await getDoc(doc(db, 'ponderaciones', firebaseId));
                     if (snap.exists()) {
-                        const { fechaActualizacion, ...criterios } = snap.data();
-                        resultado[catNorm] = Object.keys(criterios);
+                        const { fechaActualizacion, feedbackEnabled, feedbackRequired, ...criterios } = snap.data();
+                        resultadoCriterios[catNorm] = Object.keys(criterios);
+                        resultadoFeedback[catNorm] = {
+                            enabled: feedbackEnabled || false,
+                            required: feedbackRequired || false
+                        };
                     }
                 } catch (_) { /* usa fallback hardcodeado */ }
             }
-            if (Object.keys(resultado).length > 0) setPonderacionesPorCat(resultado);
+            if (Object.keys(resultadoCriterios).length > 0) setPonderacionesPorCat(resultadoCriterios);
+            if (Object.keys(resultadoFeedback).length > 0) setFeedbackConfigPorCat(resultadoFeedback);
         };
         cargar();
     }, [proyectos])
@@ -260,6 +274,21 @@ function EvaluacionProyectos() {
         }
     }
 
+    const handleFeedbackChange = (proyectoId, valor) => {
+        setFeedbacks((prev) => ({
+            ...prev,
+            [proyectoId]: valor
+        }))
+        // Limpiar error previo cuando el usuario edita
+        if (proyectosConError[proyectoId]) {
+            setProyectosConError(prev => {
+                const updated = { ...prev }
+                delete updated[proyectoId]
+                return updated
+            })
+        }
+    }
+
     // Función auxiliar para timeout
     const conTimeout = (promesa, ms) => {
         return Promise.race([
@@ -278,7 +307,13 @@ function EvaluacionProyectos() {
         const camposRequeridos = obtenerCamposPorCategoria(proyecto.categoria).map(c => c.nombre)
         const tieneCamposVacios = camposRequeridos.some(campo => !calificaciones[campo])
 
-        if (tieneCamposVacios || !nombreJurado || !finalId || !proyectoId) return
+        // Validar feedback si está habilitado y es requerido
+        const catNormalizada = normalizarTexto(proyecto.categoria)
+        const feedbackConfig = feedbackConfigPorCat[catNormalizada] || {}
+        const feedbackTexto = feedbacks[proyectoId] || ''
+        const feedbackRequerido = feedbackConfig.enabled && feedbackConfig.required && !feedbackTexto.trim()
+
+        if (tieneCamposVacios || feedbackRequerido || !nombreJurado || !finalId || !proyectoId) return
 
         setLoadingProyectoId(proyectoId)
         setEnviadoProyectoId(null)
@@ -295,20 +330,30 @@ function EvaluacionProyectos() {
             const evaluacionId = `${finalId}_${nombreJurado}_${proyectoId}`.replace(/\s+/g, '-')
             const evaluacionRef = doc(db, 'evaluaciones', evaluacionId)
             
+            // Preparar datos a guardar
+            const datosEvaluacion = {
+                proyectoId,
+                proyectoNumero: proyecto.numero,
+                proyectoNombre: proyecto.proyecto,
+                gerencia: proyecto.gerencia,
+                categoria: proyecto.categoria,
+                lider: proyecto.lider,
+                jurado: nombreJurado,
+                finalId,
+                finalNombre,
+                calificaciones,
+                fechaEvaluacion: serverTimestamp()
+            }
+
+            // Agregar feedback si está habilitado
+            const catNormalizada = normalizarTexto(proyecto.categoria)
+            const feedbackConfig = feedbackConfigPorCat[catNormalizada] || {}
+            if (feedbackConfig.enabled) {
+                datosEvaluacion.feedback = feedbacks[proyectoId] || ''
+            }
+
             await conTimeout(
-                setDoc(evaluacionRef, {
-                    proyectoId,
-                    proyectoNumero: proyecto.numero,
-                    proyectoNombre: proyecto.proyecto,
-                    gerencia: proyecto.gerencia,
-                    categoria: proyecto.categoria,
-                    lider: proyecto.lider,
-                    jurado: nombreJurado,
-                    finalId,
-                    finalNombre,
-                    calificaciones,
-                    fechaEvaluacion: serverTimestamp()
-                }),
+                setDoc(evaluacionRef, datosEvaluacion),
                 30000 // 30 segundos de timeout
             )
 
@@ -620,6 +665,42 @@ function EvaluacionProyectos() {
                                                     )
                                                 })}
                                             </Box>
+
+                                            {/* Campo de Feedback si está habilitado */}
+                                            {(() => {
+                                                const catNormalizada = normalizarTexto(proyecto.categoria)
+                                                const feedbackConfig = feedbackConfigPorCat[catNormalizada] || {}
+                                                if (!feedbackConfig.enabled) return null
+
+                                                const feedbackTexto = feedbacks[proyectoId] || ''
+                                                const mostrarErrorFeedback = intentoEnvio[proyectoId] && feedbackConfig.required && !feedbackTexto.trim()
+
+                                                return (
+                                                    <Box sx={{ mt: 3 }}>
+                                                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', display: 'block', mb: 1 }}>
+                                                            📝 Feedback {feedbackConfig.required && <Box component="span" sx={{ color: 'error.main' }}>*</Box>}
+                                                        </Typography>
+                                                        <TextField
+                                                            fullWidth
+                                                            multiline
+                                                            rows={2}
+                                                            value={feedbackTexto}
+                                                            onChange={(e) => handleFeedbackChange(proyectoId, e.target.value)}
+                                                            placeholder={feedbackConfig.required ? 'Ingresa tu feedback (obligatorio)' : 'Ingresa tu feedback (opcional)'}
+                                                            error={mostrarErrorFeedback}
+                                                            helperText={mostrarErrorFeedback ? 'El feedback es obligatorio para esta categoría' : ''}
+                                                            sx={{ 
+                                                                backgroundColor: '#fff',
+                                                                '& .MuiOutlinedInput-root': {
+                                                                    '&.Mui-focused fieldset': {
+                                                                        borderColor: estilo.color
+                                                                    }
+                                                                }
+                                                            }}
+                                                        />
+                                                    </Box>
+                                                )
+                                            })()}
 
                                             <Box 
                                                 sx={{ 
