@@ -54,34 +54,43 @@ export default function Header({
       zIndex: 100, 
       boxShadow: '0 2px 4px rgba(0,0,0,0.05)' 
     }}>
-      <Container maxWidth="lg" sx={{ py: 2 }}>
+      <Container maxWidth="xl" sx={{ py: { xs: 1.5, sm: 2 } }}>
         {/* Fila superior: Botón volver y contador de proyectos */}
         <Box sx={{ 
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'space-between', 
-          mb: 2 
+          mb: { xs: 1.5, sm: 2 }
         }}>
           <Button
             onClick={() => navigate('/')}
-            startIcon={<ArrowBackIcon />}
+            startIcon={<ArrowBackIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
             sx={{ 
               color: '#666',
               textTransform: 'none',
-              fontSize: 13,
+              fontSize: { xs: 11, sm: 13 },
               fontWeight: 500,
+              px: { xs: 1, sm: 2 },
+              py: { xs: 0.5, sm: 1 },
+              minWidth: 'auto',
               '&:hover': { bgcolor: 'rgba(0,0,0,0.03)' }
             }}
           >
-            Volver
+            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Volver</Box>
+            <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Atrás</Box>
           </Button>
           
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Chip 
-              icon={<EmojiEventsIcon />}
+              icon={<EmojiEventsIcon sx={{ fontSize: { xs: 14, sm: 18 } }} />}
               label={`${proyectos.length} proyecto${proyectos.length !== 1 ? 's' : ''}`}
               size="small"
-              sx={{ bgcolor: '#f5f5f5', fontWeight: 600, fontSize: 12 }}
+              sx={{ 
+                bgcolor: '#f5f5f5', 
+                fontWeight: 600, 
+                fontSize: { xs: 10, sm: 12 },
+                height: { xs: 24, sm: 28 }
+              }}
             />
           </Box>
         </Box>
@@ -91,8 +100,10 @@ export default function Header({
           <Box sx={{ 
             display: 'inline-flex', 
             alignItems: 'center', 
-            gap: 1.5,
+            gap: { xs: 0.5, sm: 1.5 },
             cursor: finalesDisponibles.length > 1 ? 'pointer' : 'default',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
             '&:hover': finalesDisponibles.length > 1 ? { 
               '& .expand-icon': { 
                 color: COLORS.orange 
@@ -108,7 +119,8 @@ export default function Header({
                 fontWeight: 800,
                 textTransform: 'uppercase',
                 letterSpacing: '-0.3px',
-                display: 'inline'
+                display: 'inline',
+                fontSize: { xs: 16, sm: 20, md: 24 }
               }}
             >
               {finalActiva.nombre} - PRIVADO
@@ -121,15 +133,16 @@ export default function Header({
                 sx={{ 
                   color: COLORS.navy,
                   transition: 'all 0.2s',
-                  transform: open ? 'rotate(180deg)' : 'rotate(0deg)'
+                  transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+                  p: { xs: 0.5, sm: 1 }
                 }}
               >
-                <ExpandMoreIcon />
+                <ExpandMoreIcon sx={{ fontSize: { xs: 18, sm: 24 } }} />
               </IconButton>
             )}
           </Box>
 
-          <Typography variant="body2" sx={{ color: '#666', fontWeight: 600, mt: 0.5 }}>
+          <Typography variant="body2" sx={{ color: '#666', fontWeight: 600, mt: 0.5, fontSize: { xs: 11, sm: 14 } }}>
             Ranking {finalActiva.anio}
           </Typography>
         </Box>
@@ -189,20 +202,18 @@ export default function Header({
                   justifyContent: 'space-between',
                   width: '100%'
                 }}>
-                  <Box>
-                    <ListItemText
-                      primary={final.nombre}
-                      secondary={`Año ${final.anio}`}
-                      primaryTypographyProps={{
-                        fontWeight: isSelected ? 700 : 600,
-                        fontSize: 14,
-                        color: isSelected ? COLORS.navy : 'text.primary'
-                      }}
-                      secondaryTypographyProps={{
-                        fontSize: 12
-                      }}
-                    />
-                  </Box>
+                  <ListItemText
+                    primary={final.nombre}
+                    secondary={`Año ${final.anio}`}
+                    primaryTypographyProps={{
+                      fontWeight: isSelected ? 700 : 600,
+                      fontSize: 14,
+                      color: isSelected ? COLORS.navy : 'text.primary'
+                    }}
+                    secondaryTypographyProps={{
+                      fontSize: 12
+                    }}
+                  />
                   {isSelected && (
                     <CheckIcon sx={{ color: COLORS.orange, fontSize: 20, ml: 1 }} />
                   )}

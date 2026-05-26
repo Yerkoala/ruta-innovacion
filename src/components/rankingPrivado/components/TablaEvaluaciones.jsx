@@ -44,35 +44,51 @@ export default function TablaEvaluaciones({
       <Typography 
         variant="subtitle2" 
         fontWeight={700} 
-        sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: COLORS.navy }}
+        sx={{ 
+          mb: 2, 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 1, 
+          color: COLORS.navy,
+          fontSize: { xs: 12, sm: 14 }
+        }}
       >
         Evaluaciones Individuales
       </Typography>
       
-      <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #e0e0e0' }}>
-        <Table size="small">
+      <TableContainer 
+        component={Paper} 
+        elevation={0} 
+        sx={{ 
+          border: '1px solid #e0e0e0',
+          maxWidth: '100%',
+          overflowX: 'auto'
+        }}
+      >
+        <Table size="small" sx={{ minWidth: { xs: 650, sm: 'auto' } }}>
           <TableHead>
             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-              <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Juez</TableCell>
-              <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Desafío</TableCell>
-              <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Creatividad</TableCell>
-              <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Implementabilidad</TableCell>
-              <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Escalabilidad</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>Juez</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>Desafío</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>Creatividad</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>Implementabilidad</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>Escalabilidad</TableCell>
               {esChispeza ? (
-                <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Impacto</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>Impacto</TableCell>
               ) : (
                 <>
-                  <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>EBITDA</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Productividad</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>EBITDA</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>Productividad</TableCell>
                 </>
               )}
               <TableCell 
                 align="center" 
                 sx={{ 
                   fontWeight: 700, 
-                  fontSize: 12, 
+                  fontSize: { xs: 10, sm: 12 }, 
                   bgcolor: colors.bg, 
-                  color: colors.text 
+                  color: colors.text,
+                  whiteSpace: 'nowrap'
                 }}
               >
                 Nota Final
@@ -85,31 +101,31 @@ export default function TablaEvaluaciones({
               
               return (
                 <TableRow key={idx} sx={{ '&:hover': { bgcolor: '#fafafa' } }}>
-                  <TableCell sx={{ fontWeight: 600, fontSize: 13 }}>
+                  <TableCell sx={{ fontWeight: 600, fontSize: { xs: 11, sm: 13 }, whiteSpace: 'nowrap' }}>
                     {evaluacion.jurado || 'Sin nombre'}
                   </TableCell>
-                  <TableCell align="center" sx={{ fontSize: 13 }}>
+                  <TableCell align="center" sx={{ fontSize: { xs: 11, sm: 13 } }}>
                     {evaluacion.calificaciones?.DESAFIO || '-'}
                   </TableCell>
-                  <TableCell align="center" sx={{ fontSize: 13 }}>
+                  <TableCell align="center" sx={{ fontSize: { xs: 11, sm: 13 } }}>
                     {evaluacion.calificaciones?.CREATIVIDAD || '-'}
                   </TableCell>
-                  <TableCell align="center" sx={{ fontSize: 13 }}>
+                  <TableCell align="center" sx={{ fontSize: { xs: 11, sm: 13 } }}>
                     {evaluacion.calificaciones?.IMPLEMENTABILIDAD || '-'}
                   </TableCell>
-                  <TableCell align="center" sx={{ fontSize: 13 }}>
+                  <TableCell align="center" sx={{ fontSize: { xs: 11, sm: 13 } }}>
                     {evaluacion.calificaciones?.ESCALABILIDAD || '-'}
                   </TableCell>
                   {esChispeza ? (
-                    <TableCell align="center" sx={{ fontSize: 13 }}>
+                    <TableCell align="center" sx={{ fontSize: { xs: 11, sm: 13 } }}>
                       {evaluacion.calificaciones?.IMPACTO || '-'}
                     </TableCell>
                   ) : (
                     <>
-                      <TableCell align="center" sx={{ fontSize: 13 }}>
+                      <TableCell align="center" sx={{ fontSize: { xs: 11, sm: 13 } }}>
                         {evaluacion.calificaciones?.EBITDA || '-'}
                       </TableCell>
-                      <TableCell align="center" sx={{ fontSize: 13 }}>
+                      <TableCell align="center" sx={{ fontSize: { xs: 11, sm: 13 } }}>
                         {evaluacion.calificaciones?.PRODUCTIVIDAD || '-'}
                       </TableCell>
                     </>
@@ -118,7 +134,7 @@ export default function TablaEvaluaciones({
                     align="center" 
                     sx={{ 
                       fontWeight: 700, 
-                      fontSize: 14, 
+                      fontSize: { xs: 12, sm: 14 }, 
                       bgcolor: colors.bg, 
                       color: colors.text 
                     }}

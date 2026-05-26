@@ -143,19 +143,19 @@ export default function ResumenJuez({
       <Box 
         sx={{ 
           bgcolor: colors.bg,
-          p: 2.5,
+          p: { xs: 1.5, sm: 2.5 },
           cursor: 'pointer',
           '&:hover': { bgcolor: colors.bgHover },
           transition: 'background-color 0.2s'
         }}
         onClick={() => setExpanded(!expanded)}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <AssignmentIcon sx={{ fontSize: 28, color: colors.text }} />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: { xs: 1.5, sm: 2 } }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
+            <AssignmentIcon sx={{ fontSize: { xs: 20, sm: 28 }, color: colors.text }} />
             <Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                <Typography variant="h6" fontWeight={800} sx={{ color: COLORS.navy }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, mb: 0.5 }}>
+                <Typography variant="h6" fontWeight={800} sx={{ color: COLORS.navy, fontSize: { xs: 14, sm: 18 } }}>
                   Resumen de {nombreJuez}
                 </Typography>
                 {/* Badge de estado del juez */}
@@ -173,19 +173,23 @@ export default function ResumenJuez({
                   }
                   variant={estaVotando ? 'filled' : 'outlined'}
                   icon={
-                    estaVotando ? <BlockIcon sx={{ fontSize: 16 }} /> :
-                    estaCompletado ? <CheckCircleIcon sx={{ fontSize: 16 }} /> :
-                    <PendingIcon sx={{ fontSize: 16 }} />
+                    estaVotando ? <BlockIcon sx={{ fontSize: { xs: 12, sm: 16 } }} /> :
+                    estaCompletado ? <CheckCircleIcon sx={{ fontSize: { xs: 12, sm: 16 } }} /> :
+                    <PendingIcon sx={{ fontSize: { xs: 12, sm: 16 } }} />
                   }
+                  sx={{
+                    height: { xs: 20, sm: 24 },
+                    '& .MuiChip-label': { px: { xs: 0.75, sm: 1 }, fontSize: { xs: 10, sm: 12 } }
+                  }}
                 />
               </Box>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 10, sm: 12 }, display: { xs: 'none', sm: 'block' } }}>
                 Haz clic para ver detalles
               </Typography>
             </Box>
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
             {/* Switch de control de estado - Solo si no está completado */}
             {!estaCompletado && finalId && (
               <Box 
@@ -199,8 +203,8 @@ export default function ResumenJuez({
                 sx={{ 
                   bgcolor: 'white', 
                   borderRadius: 2, 
-                  px: 2, 
-                  py: 1,
+                  px: { xs: 1, sm: 2 }, 
+                  py: { xs: 0.5, sm: 1 },
                   border: '1px solid',
                   borderColor: 'divider'
                 }}
@@ -229,9 +233,10 @@ export default function ResumenJuez({
                   sx={{
                     m: 0,
                     '& .MuiFormControlLabel-label': {
-                      fontSize: 12,
+                      fontSize: { xs: 10, sm: 12 },
                       fontWeight: 600,
-                      color: estaVotando ? 'warning.main' : 'success.main'
+                      color: estaVotando ? 'warning.main' : 'success.main',
+                      display: { xs: 'none', sm: 'block' }
                     }
                   }}
                 />
@@ -242,70 +247,81 @@ export default function ResumenJuez({
               sx={{ 
                 transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
                 transition: 'transform 0.3s',
-                color: colors.text
+                color: colors.text,
+                p: { xs: 0.5, sm: 1 }
               }}
             >
-              <ExpandMoreIcon />
+              <ExpandMoreIcon sx={{ fontSize: { xs: 20, sm: 24 } }} />
             </IconButton>
           </Box>
         </Box>
 
         {/* Estadísticas principales */}
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+        <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, flexWrap: 'wrap', mb: { xs: 1.5, sm: 2 } }}>
           <Chip
-            icon={<AssignmentIcon />}
+            icon={<AssignmentIcon sx={{ fontSize: { xs: 14, sm: 18 } }} />}
             label={`${totalProyectos} Asignados`}
             sx={{ 
               bgcolor: 'white', 
               fontWeight: 700,
-              fontSize: 13,
+              fontSize: { xs: 10, sm: 13 },
               border: `1px solid ${COLORS.navy}`,
-              color: COLORS.navy
+              color: COLORS.navy,
+              height: { xs: 24, sm: 32 },
+              '& .MuiChip-label': { px: { xs: 1, sm: 1.5 } }
             }}
           />
           <Chip
-            icon={<CheckCircleIcon />}
+            icon={<CheckCircleIcon sx={{ fontSize: { xs: 14, sm: 18 } }} />}
             label={`${totalEvaluados} Evaluados`}
             sx={{ 
               bgcolor: 'white', 
               fontWeight: 700,
-              fontSize: 13,
+              fontSize: { xs: 10, sm: 13 },
               border: '1px solid #10b981',
-              color: '#10b981'
+              color: '#10b981',
+              height: { xs: 24, sm: 32 },
+              '& .MuiChip-label': { px: { xs: 1, sm: 1.5 } }
             }}
           />
           <Chip
-            icon={<PendingIcon />}
+            icon={<PendingIcon sx={{ fontSize: { xs: 14, sm: 18 } }} />}
             label={`${totalPendientes} Pendientes`}
             sx={{ 
               bgcolor: 'white', 
               fontWeight: 700,
-              fontSize: 13,
+              fontSize: { xs: 10, sm: 13 },
               border: `1px solid ${totalPendientes > 0 ? COLORS.orange : '#e5e7eb'}`,
-              color: totalPendientes > 0 ? COLORS.orange : '#6b7280'
+              color: totalPendientes > 0 ? COLORS.orange : '#6b7280',
+              height: { xs: 24, sm: 32 },
+              '& .MuiChip-label': { px: { xs: 1, sm: 1.5 } }
             }}
           />
           {noHaEmpezado && (
             <Chip
-              icon={<PendingIcon />}
+              icon={<PendingIcon sx={{ fontSize: { xs: 14, sm: 18 } }} />}
               label="⚠️ SIN INICIAR"
               sx={{ 
                 bgcolor: '#ef4444', 
                 color: 'white',
                 fontWeight: 900,
-                fontSize: 13
+                fontSize: { xs: 10, sm: 13 },
+                height: { xs: 24, sm: 32 },
+                '& .MuiChip-label': { px: { xs: 1, sm: 1.5 } }
               }}
             />
           )}
           {estaCompleto && (
             <Chip
-              icon={<CheckCircleIcon />}
+              icon={<CheckCircleIcon sx={{ fontSize: { xs: 14, sm: 18 } }} />}
               label="✓ COMPLETO"
               sx={{ 
                 bgcolor: '#10b981', 
                 color: 'white',
                 fontWeight: 900,
-                fontSize: 13
+                fontSize: { xs: 10, sm: 13 },
+                height: { xs: 24, sm: 32 },
+                '& .MuiChip-label': { px: { xs: 1, sm: 1.5 } }
               }}
             />
           )}
@@ -313,11 +329,11 @@ export default function ResumenJuez({
 
         {/* Barra de progreso */}
         <Box>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-            <Typography variant="caption" fontWeight={700} color="text.secondary">
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: { xs: 0.5, sm: 1 } }}>
+            <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ fontSize: { xs: 10, sm: 12 } }}>
               Progreso
             </Typography>
-            <Typography variant="caption" fontWeight={900} sx={{ color: colors.text }}>
+            <Typography variant="caption" fontWeight={900} sx={{ color: colors.text, fontSize: { xs: 10, sm: 12 } }}>
               {porcentajeCompletado.toFixed(0)}%
             </Typography>
           </Box>
@@ -325,7 +341,7 @@ export default function ResumenJuez({
             variant="determinate" 
             value={porcentajeCompletado} 
             sx={{
-              height: 8,
+              height: { xs: 6, sm: 8 },
               borderRadius: 1,
               bgcolor: '#e5e7eb',
               '& .MuiLinearProgress-bar': {
@@ -339,42 +355,50 @@ export default function ResumenJuez({
 
       {/* Detalles expandibles */}
       <Collapse in={expanded}>
-        <Box sx={{ p: 2.5, bgcolor: '#fafafa' }}>
+        <Box sx={{ p: { xs: 1.5, sm: 2.5 }, bgcolor: '#fafafa' }}>
           {/* Tabla de proyectos evaluados */}
           {proyectosEvaluados.length > 0 && (
-            <Box sx={{ mb: totalPendientes > 0 ? 3 : 0 }}>
+            <Box sx={{ mb: totalPendientes > 0 ? { xs: 2, sm: 3 } : 0 }}>
               <Typography 
                 variant="subtitle2" 
                 fontWeight={800} 
-                sx={{ mb: 1.5, color: '#10b981', display: 'flex', alignItems: 'center', gap: 1 }}
+                sx={{ mb: { xs: 1, sm: 1.5 }, color: '#10b981', display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, fontSize: { xs: 12, sm: 14 } }}
               >
-                <CheckCircleIcon sx={{ fontSize: 18 }} />
+                <CheckCircleIcon sx={{ fontSize: { xs: 14, sm: 18 } }} />
                 Proyectos Evaluados ({proyectosEvaluados.length})
               </Typography>
               
-              <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #e0e0e0' }}>
-                <Table size="small">
+              <TableContainer 
+                component={Paper} 
+                elevation={0} 
+                sx={{ 
+                  border: '1px solid #e0e0e0',
+                  maxWidth: '100%',
+                  overflowX: 'auto'
+                }}
+              >
+                <Table size="small" sx={{ minWidth: { xs: 500, sm: 'auto' } }}>
                   <TableHead>
                     <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                      <TableCell sx={{ fontWeight: 700, fontSize: 12, width: 50 }}>#</TableCell>
-                      <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>ID</TableCell>
-                      <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Categoría</TableCell>
-                      <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Proyecto</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Grupo</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, width: 50, whiteSpace: 'nowrap' }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>ID</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>Categoría</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>Proyecto</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>Grupo</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {proyectosEvaluados.map((proyecto, index) => (
                       <TableRow key={proyecto.id} sx={{ '&:hover': { bgcolor: '#f9fafb' } }}>
-                        <TableCell sx={{ fontWeight: 700, color: '#6b7280', fontSize: 12 }}>
+                        <TableCell sx={{ fontWeight: 700, color: '#6b7280', fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>
                           {index + 1}
                         </TableCell>
-                        <TableCell sx={{ fontWeight: 700, color: '#10b981', fontSize: 13 }}>
+                        <TableCell sx={{ fontWeight: 700, color: '#10b981', fontSize: { xs: 11, sm: 13 }, whiteSpace: 'nowrap' }}>
                           #{proyecto.numero}
                         </TableCell>
-                        <TableCell sx={{ fontSize: 12 }}>{proyecto.categoria}</TableCell>
-                        <TableCell sx={{ fontSize: 12 }}>{proyecto.proyecto}</TableCell>
-                        <TableCell align="center" sx={{ fontSize: 12 }}>{proyecto.grupo || '-'}</TableCell>
+                        <TableCell sx={{ fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>{proyecto.categoria}</TableCell>
+                        <TableCell sx={{ fontSize: { xs: 10, sm: 12 } }}>{proyecto.proyecto}</TableCell>
+                        <TableCell align="center" sx={{ fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>{proyecto.grupo || '-'}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -389,35 +413,43 @@ export default function ResumenJuez({
               <Typography 
                 variant="subtitle2" 
                 fontWeight={800} 
-                sx={{ mb: 1.5, color: COLORS.orange, display: 'flex', alignItems: 'center', gap: 1 }}
+                sx={{ mb: { xs: 1, sm: 1.5 }, color: COLORS.orange, display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, fontSize: { xs: 12, sm: 14 } }}
               >
-                <PendingIcon sx={{ fontSize: 18 }} />
+                <PendingIcon sx={{ fontSize: { xs: 14, sm: 18 } }} />
                 Proyectos Pendientes ({proyectosPendientes.length})
               </Typography>
               
-              <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #e0e0e0' }}>
-                <Table size="small">
+              <TableContainer 
+                component={Paper} 
+                elevation={0} 
+                sx={{ 
+                  border: '1px solid #e0e0e0',
+                  maxWidth: '100%',
+                  overflowX: 'auto'
+                }}
+              >
+                <Table size="small" sx={{ minWidth: { xs: 500, sm: 'auto' } }}>
                   <TableHead>
                     <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                      <TableCell sx={{ fontWeight: 700, fontSize: 12, width: 50 }}>#</TableCell>
-                      <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>ID</TableCell>
-                      <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Categoría</TableCell>
-                      <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Proyecto</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12 }}>Grupo</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, width: 50, whiteSpace: 'nowrap' }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>ID</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>Categoría</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>Proyecto</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 700, fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>Grupo</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {proyectosPendientes.map((proyecto, index) => (
                       <TableRow key={proyecto.id} sx={{ '&:hover': { bgcolor: '#fff8f1' } }}>
-                        <TableCell sx={{ fontWeight: 700, color: '#6b7280', fontSize: 12 }}>
+                        <TableCell sx={{ fontWeight: 700, color: '#6b7280', fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>
                           {index + 1}
                         </TableCell>
-                        <TableCell sx={{ fontWeight: 700, color: COLORS.orange, fontSize: 13 }}>
+                        <TableCell sx={{ fontWeight: 700, color: COLORS.orange, fontSize: { xs: 11, sm: 13 }, whiteSpace: 'nowrap' }}>
                           #{proyecto.numero}
                         </TableCell>
-                        <TableCell sx={{ fontSize: 12 }}>{proyecto.categoria}</TableCell>
-                        <TableCell sx={{ fontSize: 12 }}>{proyecto.proyecto}</TableCell>
-                        <TableCell align="center" sx={{ fontSize: 12 }}>{proyecto.grupo || '-'}</TableCell>
+                        <TableCell sx={{ fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>{proyecto.categoria}</TableCell>
+                        <TableCell sx={{ fontSize: { xs: 10, sm: 12 } }}>{proyecto.proyecto}</TableCell>
+                        <TableCell align="center" sx={{ fontSize: { xs: 10, sm: 12 }, whiteSpace: 'nowrap' }}>{proyecto.grupo || '-'}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -427,8 +459,8 @@ export default function ResumenJuez({
           )}
 
           {totalProyectos === 0 && (
-            <Box sx={{ textAlign: 'center', py: 3 }}>
-              <Typography variant="body2" color="text.secondary">
+            <Box sx={{ textAlign: 'center', py: { xs: 2, sm: 3 } }}>
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: 11, sm: 14 } }}>
                 Este juez no tiene proyectos asignados
               </Typography>
             </Box>

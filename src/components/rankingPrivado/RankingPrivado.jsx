@@ -7,7 +7,7 @@ import Filtros from './components/Filtros';
 import ResumenJuez from './components/ResumenJuez';
 import CategoriaAccordion from './components/CategoriaAccordion';
 import COLORS from '../../assets/colors';
-import { normalizarTexto } from './utils/categorias';
+import { normalizarTexto, getCategoryColors } from './utils/categorias';
 import { calcularPromedioProyecto } from './utils/calculos';
 import { Box, Container, Typography, Button, CircularProgress } from '@mui/material';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
@@ -293,10 +293,16 @@ export default function RankingPrivado() {
         onFinalChange={handleFinalChange}
       />
 
-      <Container maxWidth="xl" sx={{ mt: 3 }}>
+      <Container maxWidth="xl" sx={{ mt: { xs: 2, sm: 3 }, px: { xs: 1, sm: 2, md: 3 } }}>
         {/* Componente de Filtros */}
         {(grupos.length > 0 || jueces.length > 0) && (
-          <Box sx={{ mb: 3, bgcolor: 'white', p: 3, borderRadius: 2, border: '1px solid #e0e0e0' }}>
+          <Box sx={{ 
+            mb: { xs: 2, sm: 3 }, 
+            bgcolor: 'white', 
+            p: { xs: 2, sm: 3 }, 
+            borderRadius: 2, 
+            border: '1px solid #e0e0e0' 
+          }}>
             <Filtros
               grupos={grupos}
               jueces={jueces}

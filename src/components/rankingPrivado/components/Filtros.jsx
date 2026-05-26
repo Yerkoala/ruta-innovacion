@@ -44,12 +44,13 @@ export default function Filtros({
               variant={activeGroup === 'todos' ? 'contained' : 'outlined'}
               onClick={() => onGroupChange && onGroupChange('todos')}
               sx={{
-                px: 3,
-                py: 1,
+                px: { xs: 1.5, sm: 3 },
+                py: { xs: 0.5, sm: 1 },
                 fontWeight: 600,
-                fontSize: 13,
+                fontSize: { xs: 11, sm: 13 },
                 borderRadius: 2,
                 textTransform: 'none',
+                minWidth: { xs: 'auto', sm: 'auto' },
                 ...(activeGroup === 'todos' ? {
                   bgcolor: COLORS.orange,
                   borderColor: COLORS.orange,
@@ -70,12 +71,13 @@ export default function Filtros({
                 variant={activeGroup === grupo ? 'contained' : 'outlined'}
                 onClick={() => onGroupChange && onGroupChange(grupo)}
                 sx={{
-                  px: 3,
-                  py: 1,
+                  px: { xs: 1.5, sm: 3 },
+                  py: { xs: 0.5, sm: 1 },
                   fontWeight: 600,
-                  fontSize: 13,
+                  fontSize: { xs: 11, sm: 13 },
                   borderRadius: 2,
                   textTransform: 'none',
+                  minWidth: { xs: 'auto', sm: 'auto' },
                   ...(activeGroup === grupo ? {
                     bgcolor: COLORS.orange,
                     borderColor: COLORS.orange,
@@ -124,12 +126,13 @@ export default function Filtros({
               variant={activeJuez === 'todos' ? 'contained' : 'outlined'}
               onClick={() => onJuezChange && onJuezChange('todos')}
               sx={{
-                px: 3,
-                py: 1,
+                px: { xs: 1.5, sm: 3 },
+                py: { xs: 0.5, sm: 1 },
                 fontWeight: 600,
-                fontSize: 13,
+                fontSize: { xs: 11, sm: 13 },
                 borderRadius: 2,
                 textTransform: 'none',
+                minWidth: { xs: 'auto', sm: 'auto' },
                 ...(activeJuez === 'todos' ? {
                   bgcolor: COLORS.navy,
                   borderColor: COLORS.navy,
@@ -150,12 +153,13 @@ export default function Filtros({
                 variant={activeJuez === juez ? 'contained' : 'outlined'}
                 onClick={() => onJuezChange && onJuezChange(juez)}
                 sx={{
-                  px: 3,
-                  py: 1,
+                  px: { xs: 1.5, sm: 3 },
+                  py: { xs: 0.5, sm: 1 },
                   fontWeight: 600,
-                  fontSize: 13,
+                  fontSize: { xs: 11, sm: 13 },
                   borderRadius: 2,
                   textTransform: 'none',
+                  minWidth: { xs: 'auto', sm: 'auto' },
                   ...(activeJuez === juez ? {
                     bgcolor: COLORS.navy,
                     borderColor: COLORS.navy,

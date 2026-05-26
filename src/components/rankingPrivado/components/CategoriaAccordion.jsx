@@ -40,24 +40,31 @@ export default function CategoriaAccordion({
       }}
     >
       <AccordionSummary
-        expandIcon={<ExpandMoreIcon sx={{ color: colors.text }} />}
+        expandIcon={<ExpandMoreIcon sx={{ color: colors.text, fontSize: { xs: 20, sm: 24 } }} />}
         sx={{
           bgcolor: colors.bg,
-          minHeight: 60,
-          '&.Mui-expanded': { minHeight: 60 },
-          px: 2.5,
+          minHeight: { xs: 50, sm: 60 },
+          '&.Mui-expanded': { minHeight: { xs: 50, sm: 60 } },
+          px: { xs: 1.5, sm: 2.5 },
           py: 1
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Typography sx={{ fontSize: 28 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
+          <Typography sx={{ fontSize: { xs: 20, sm: 28 } }}>
             {estilo.icono}
           </Typography>
           <Box>
-            <Typography variant="h6" fontWeight={800} sx={{ color: colors.text, fontSize: 16 }}>
+            <Typography 
+              variant="h6" 
+              fontWeight={800} 
+              sx={{ 
+                color: colors.text, 
+                fontSize: { xs: 14, sm: 16 }
+              }}
+            >
               {nombreDisplay}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 10, sm: 12 } }}>
               {proyectos.length} proyecto{proyectos.length !== 1 ? 's' : ''}
             </Typography>
           </Box>
