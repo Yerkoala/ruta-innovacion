@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, where, collectionGroup } from 'firebase/firestore';
 import { db } from '../firebaseconfig';
+import COLORS from '../assets/colors';
 import { 
   Box, 
   Container, 
@@ -17,13 +18,6 @@ import {
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-
-// Colores de Agrosuper
-const COLORS = {
-  navy: '#001a6e',
-  orange: '#F47920',
-  orangeDark: '#d96a18',
-};
 
 // Función para normalizar strings
 const normalizarTexto = (texto) => {

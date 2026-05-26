@@ -12,6 +12,7 @@ import WarningIcon from '@mui/icons-material/Warning'
 import CloudOffIcon from '@mui/icons-material/CloudOff'
 import { collection, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebaseconfig'
+import COLORS from '../assets/colors'
 
 // Función para normalizar strings
 const normalizarTexto = (texto) => {
@@ -413,18 +414,18 @@ function EvaluacionProyectos() {
                 </Button>
 
                 <Paper elevation={0} sx={{ p: 4, borderRadius: 3, backgroundColor: '#f8f9fa', border: '1px solid #e0e0e0', textAlign: 'center' }}>
-                    <EmojiEventsIcon sx={{ fontSize: 40, color: '#F47920', mb: 1 }} />
-                    <Typography variant="h4" sx={{ fontWeight: 800, color: '#001a6e', textTransform: 'uppercase', letterSpacing: '-0.5px' }}>
+                    <EmojiEventsIcon sx={{ fontSize: 40, color: COLORS.orange, mb: 1 }} />
+                    <Typography variant="h4" sx={{ fontWeight: 800, color: COLORS.navy, textTransform: 'uppercase', letterSpacing: '-0.5px' }}>
                         {finalNombre}
                     </Typography>
-                    <Box sx={{ width: 40, height: 3, backgroundColor: '#F47920', borderRadius: 2, mx: 'auto', my: 2 }} />
+                    <Box sx={{ width: 40, height: 3, backgroundColor: COLORS.orange, borderRadius: 2, mx: 'auto', my: 2 }} />
                     <Typography variant="subtitle1" color="text.secondary" sx={{ fontWeight: 500 }}>
-                        Jurado: <Box component="span" sx={{ color: '#001a6e', fontWeight: 700 }}>{nombreJurado}</Box>
+                        Jurado: <Box component="span" sx={{ color: COLORS.navy, fontWeight: 700 }}>{nombreJurado}</Box>
                     </Typography>
                     <Chip
                         label={`${proyectos.length} proyectos en total`}
                         size="small"
-                        sx={{ mt: 2, backgroundColor: 'rgba(0, 26, 110, 0.08)', color: '#001a6e', fontWeight: 600 }}
+                        sx={{ mt: 2, backgroundColor: 'rgba(0, 26, 110, 0.08)', color: COLORS.navy, fontWeight: 600 }}
                     />
                 </Paper>
             </Box>
@@ -468,8 +469,8 @@ function EvaluacionProyectos() {
                     }}
                 >
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <InfoOutlinedIcon sx={{ color: '#F47920', fontSize: 24 }} />
-                        <Typography variant="h6" sx={{ fontWeight: 700, color: '#001a6e' }}>
+                        <InfoOutlinedIcon sx={{ color: COLORS.orange, fontSize: 24 }} />
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: COLORS.navy }}>
                             Criterios de Evaluación
                         </Typography>
                     </Box>
@@ -483,7 +484,7 @@ function EvaluacionProyectos() {
                             <Box key={campo.nombre} sx={{ display: 'flex', gap: 1.5, p: 1.5, borderRadius: 2, backgroundColor: '#f8f9fa' }}>
                                 <InfoOutlinedIcon sx={{ color: 'text.secondary', fontSize: 20, flexShrink: 0, mt: 0.2 }} />
                                 <Box>
-                                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#001a6e', mb: 0.5 }}>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: COLORS.navy, mb: 0.5 }}>
                                         {campo.nombre}
                                         {campo.nombre === 'PRODUCTIVIDAD' && (
                                             <Chip label="1, 3 o 5" size="small" sx={{ ml: 1, fontSize: 10, height: 18 }} />

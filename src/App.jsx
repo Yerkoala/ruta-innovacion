@@ -11,12 +11,7 @@ import {
   CssBaseline,
 } from '@mui/material'
 import { obtenerFinalActiva, obtenerProyectosPorFinal, obtenerEstadoJuez, suscribirseEstadosJueces, registrarJuezEvaluando } from './components/adminPanel/utils/firebaseOperations'
-
-const COLORS = {
-  navy: '#001a6e',
-  orange: '#F47920',
-  orangeDark: '#d96a18',
-}
+import COLORS from './assets/colors'
 
 function App() {
   const [juezSeleccionado, setJuezSeleccionado] = useState('')
@@ -348,7 +343,7 @@ function App() {
                   return (
                     <Button
                       key={juez}
-                      variant={juezSeleccionado === juez ? 'contained' : 'outlined'}
+                      variant={juezSeleccionado === juez && !estaEvaluando ? 'contained' : 'outlined'}
                       onClick={() => !estaEvaluando && setJuezSeleccionado(juez)}
                       disabled={loadingProyectos || estaEvaluando}
                       sx={{
@@ -361,17 +356,15 @@ function App() {
                         textTransform: 'none',
                         position: 'relative',
                         ...(estaEvaluando ? {
-                          borderColor: '#d1d5db',
-                          color: '#9ca3af',
-                          backgroundColor: '#f3f4f6',
-                          cursor: 'not-allowed',
-                          opacity: 0.6,
-                          '&:hover': { backgroundColor: '#f3f4f6' },
-                          '&.Mui-disabled': {
-                            borderColor: '#d1d5db',
-                            color: '#9ca3af',
-                            backgroundColor: '#f3f4f6',
-                            opacity: 0.6
+                          borderColor: '#d1d5db !important',
+                          color: '#9ca3af !important',
+                          backgroundColor: '#f3f4f6 !important',
+                          cursor: 'not-allowed !important',
+                          opacity: '0.7 !important',
+                          pointerEvents: 'none',
+                          '&:hover': { 
+                            backgroundColor: '#f3f4f6 !important',
+                            borderColor: '#d1d5db !important'
                           }
                         } : juezSeleccionado === juez ? {
                           backgroundColor: COLORS.orange,

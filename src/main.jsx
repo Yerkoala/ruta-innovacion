@@ -5,7 +5,7 @@ import App from './App';
 import AdminPanel from './components/adminPanel/component/AdminPanel';
 import EvaluacionProyectos from './components/EvaluacionProyectos';
 import Ranking from './components/Ranking';
-import RankingPrivado from './components/RankingPrivado';
+import RankingPrivado from './components/rankingPrivado/RankingPrivado';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>
