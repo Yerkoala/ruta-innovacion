@@ -52,6 +52,7 @@ function EvaluacionProyectos() {
     const [inputs, setInputs] = useState({})
     const [feedbacks, setFeedbacks] = useState({}) // Estado para feedbacks de cada proyecto
     const [ponderacionesPorCat, setPonderacionesPorCat] = useState({})
+    const [criteriosTipoPorCat, setCriteriosTipoPorCat] = useState({}) // Tipos de criterios por categoría
     const [feedbackConfigPorCat, setFeedbackConfigPorCat] = useState({}) // Configuración de feedback por categoría
     const [loadingProyectoId, setLoadingProyectoId] = useState(null)
     const [enviadoProyectoId, setEnviadoProyectoId] = useState(null)
@@ -64,6 +65,17 @@ function EvaluacionProyectos() {
     const proyectos = state?.proyectos || []
     const finalNombre = state?.finalNombre
     const finalId = state?.finalId
+
+    // DEBUG: Ver estructura completa de proyectos
+    useEffect(() => {
+        if (proyectos.length > 0) {
+            console.log('=== DATOS DE PROYECTOS ===')
+            console.log('Total de proyectos:', proyectos.length)
+            console.log('Primer proyecto completo:', proyectos[0])
+            console.log('Todos los campos del primer proyecto:', Object.keys(proyectos[0]))
+            console.log('Todos los proyectos:', proyectos)
+        }
+    }, [proyectos])
 
     // Clave única para localStorage basada en jurado y final
     const localStorageKey = `evaluaciones_${finalId}_${nombreJurado}`.replace(/\s+/g, '-')
@@ -144,13 +156,15 @@ function EvaluacionProyectos() {
         const cargar = async () => {
             const resultadoCriterios = {};
             const resultadoFeedback = {};
+            const resultadoTipos = {};
             for (const catNorm of categoriasUnicas) {
                 const firebaseId = catNorm.replace(/\s+/g, '-');
                 try {
                     const snap = await getDoc(doc(db, 'ponderaciones', firebaseId));
                     if (snap.exists()) {
-                        const { fechaActualizacion, feedbackEnabled, feedbackRequired, ...criterios } = snap.data();
+                        const { fechaActualizacion, feedbackEnabled, feedbackRequired, criteriosTipo, ...criterios } = snap.data();
                         resultadoCriterios[catNorm] = Object.keys(criterios);
+                        resultadoTipos[catNorm] = criteriosTipo || {};
                         resultadoFeedback[catNorm] = {
                             enabled: feedbackEnabled || false,
                             required: feedbackRequired || false
@@ -159,6 +173,7 @@ function EvaluacionProyectos() {
                 } catch (_) { /* usa fallback hardcodeado */ }
             }
             if (Object.keys(resultadoCriterios).length > 0) setPonderacionesPorCat(resultadoCriterios);
+            if (Object.keys(resultadoTipos).length > 0) setCriteriosTipoPorCat(resultadoTipos);
             if (Object.keys(resultadoFeedback).length > 0) setFeedbackConfigPorCat(resultadoFeedback);
         };
         cargar();
@@ -168,13 +183,18 @@ function EvaluacionProyectos() {
     const obtenerCamposPorCategoria = (categoria) => {
         const catNormalizada = normalizarTexto(categoria)
         const criteriosDesdeFirebase = ponderacionesPorCat[catNormalizada]
+        const tiposDesdeFirebase = criteriosTipoPorCat[catNormalizada] || {}
 
         if (criteriosDesdeFirebase && criteriosDesdeFirebase.length > 0) {
-            return criteriosDesdeFirebase.map(nombre => ({
-                nombre,
-                descripcion: DESCRIPCION_CRITERIOS[nombre]?.descripcion || `Criterio de evaluación: ${nombre}`,
-                opciones: DESCRIPCION_CRITERIOS[nombre]?.opciones || [1, 2, 3, 4, 5]
-            }))
+            return criteriosDesdeFirebase.map(nombre => {
+                const tipo = tiposDesdeFirebase[nombre] || 'numeric';
+                return {
+                    nombre,
+                    tipo,
+                    descripcion: DESCRIPCION_CRITERIOS[nombre]?.descripcion || `Criterio de evaluación: ${nombre}`,
+                    opciones: tipo === 'boolean' ? ['Sí', 'No'] : (DESCRIPCION_CRITERIOS[nombre]?.opciones || [1, 2, 3, 4, 5])
+                }
+            })
         }
 
         // Fallback hardcodeado mientras cargan o si falla Firebase
@@ -561,15 +581,27 @@ function EvaluacionProyectos() {
                                         </AccordionSummary>
 
                                         <AccordionDetails sx={{ backgroundColor: '#fafafa', borderTop: '1px solid #f0f0f0', p: 3 }}>
+                                            {/* DEBUG: Ver campos del proyecto actual */}
+                                            {console.log(`Proyecto #${proyecto.numero} - Campos disponibles:`, Object.keys(proyecto))}
+                                            {console.log(`Proyecto #${proyecto.numero} - Datos completos:`, proyecto)}
+                                            
                                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} mb={3}>
                                                 <Box flex={1}>
                                                     <Typography variant="caption" sx={{ color: 'text.secondary', textTransform: 'uppercase', fontWeight: 700 }}>Gerencia</Typography>
                                                     <Typography variant="body2" sx={{ fontWeight: 500 }}>{proyecto.gerencia}</Typography>
                                                 </Box>
-                                                <Box flex={1}>
-                                                    <Typography variant="caption" sx={{ color: 'text.secondary', textTransform: 'uppercase', fontWeight: 700 }}>Líder</Typography>
-                                                    <Typography variant="body2" sx={{ fontWeight: 500 }}>{proyecto.lider}</Typography>
-                                                </Box>
+                                                {proyecto.lider && (
+                                                    <Box flex={1}>
+                                                        <Typography variant="caption" sx={{ color: 'text.secondary', textTransform: 'uppercase', fontWeight: 700 }}>Líder</Typography>
+                                                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{proyecto.lider}</Typography>
+                                                    </Box>
+                                                )}
+                                                {proyecto.Empresa && (
+                                                    <Box flex={1}>
+                                                        <Typography variant="caption" sx={{ color: 'text.secondary', textTransform: 'uppercase', fontWeight: 700 }}>Empresa</Typography>
+                                                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{proyecto.Empresa}</Typography>
+                                                    </Box>
+                                                )}
                                                 {proyecto.grupo && (
                                                     <Box flex={0.4}>
                                                         <Typography variant="caption" sx={{ color: 'text.secondary', textTransform: 'uppercase', fontWeight: 700 }}>Grupo</Typography>
@@ -608,6 +640,39 @@ function EvaluacionProyectos() {
                                                 </Box>
                                             )}
 
+                                            {proyecto.Costo_implementacion && (
+                                                <Box sx={{ backgroundColor: '#fff', p: 2, borderRadius: 2, border: '1px dashed #d9d9d9', mb: 3 }}>
+                                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', display: 'block', mb: 0.5 }}>
+                                                        💰 Costo de Implementación
+                                                    </Typography>
+                                                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                                        {proyecto.Costo_implementacion}
+                                                    </Typography>
+                                                </Box>
+                                            )}
+
+                                            {proyecto.Costo_piloto && (
+                                                <Box sx={{ backgroundColor: '#fff', p: 2, borderRadius: 2, border: '1px dashed #d9d9d9', mb: 3 }}>
+                                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', display: 'block', mb: 0.5 }}>
+                                                        🧪 Costo de Piloto
+                                                    </Typography>
+                                                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                                        {proyecto.Costo_piloto}
+                                                    </Typography>
+                                                </Box>
+                                            )}
+
+                                            {proyecto.Casos && (
+                                                <Box sx={{ backgroundColor: '#fff', p: 2, borderRadius: 2, border: '1px dashed #d9d9d9', mb: 3 }}>
+                                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'uppercase', display: 'block', mb: 0.5 }}>
+                                                        📊 Casos
+                                                    </Typography>
+                                                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                                        {proyecto.Casos}
+                                                    </Typography>
+                                                </Box>
+                                            )}
+
                                             <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 700, color: estilo.color }}>
                                                 CALIFICACIÓN
                                             </Typography>
@@ -616,6 +681,11 @@ function EvaluacionProyectos() {
                                                 {obtenerCamposPorCategoria(proyecto.categoria).map((campo) => {
                                                     const valorCampo = inputs[proyectoId]?.[campo.nombre] ?? ''
                                                     const mostrarError = intentoEnvio[proyectoId] && valorCampo === ''
+                                                    
+                                                    // Para campos booleanos, convertir valores internos (5/0) a "Sí"/"No" para mostrar
+                                                    const valorParaMostrar = campo.tipo === 'boolean' && valorCampo !== '' 
+                                                        ? (valorCampo === 5 || valorCampo === '5' ? 'Sí' : 'No')
+                                                        : valorCampo
 
                                                     return (
                                                         <Box key={campo.nombre} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
@@ -646,8 +716,15 @@ function EvaluacionProyectos() {
                                                                     {campo.nombre}
                                                                 </InputLabel>
                                                                 <Select
-                                                                    value={valorCampo}
-                                                                    onChange={(e) => handleChange(proyectoId, campo.nombre, e.target.value)}
+                                                                    value={valorParaMostrar}
+                                                                    onChange={(e) => {
+                                                                        const valorSeleccionado = e.target.value;
+                                                                        // Para campos booleanos, convertir "Sí"/"No" a 5/0 internamente
+                                                                        const valorAGuardar = campo.tipo === 'boolean'
+                                                                            ? (valorSeleccionado === 'Sí' ? 5 : 0)
+                                                                            : valorSeleccionado;
+                                                                        handleChange(proyectoId, campo.nombre, valorAGuardar);
+                                                                    }}
                                                                     label={campo.nombre}
                                                                     sx={{ backgroundColor: '#fff' }}
                                                                 >

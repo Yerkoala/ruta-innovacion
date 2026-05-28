@@ -25,6 +25,7 @@ function App() {
   const [loadingFinal, setLoadingFinal] = useState(true)
   const [loadingProyectos, setLoadingProyectos] = useState(false)
   const [snackbar, setSnackbar] = useState({ open: false, mensaje: '', severity: 'info' })
+  const [busquedaJuez, setBusquedaJuez] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -38,9 +39,19 @@ function App() {
           const proyectos = await obtenerProyectosPorFinal(final.id)
           setProyectosCargados(proyectos)
           
-          // Detectar grupos únicos
-          const gruposUnicos = [...new Set(proyectos.map(p => p.grupo).filter(Boolean))].sort()
+          // Detectar grupos únicos (filtrar valores vacíos, espacios y caracteres sueltos sin sentido)
+          const gruposUnicos = [...new Set(
+            proyectos
+              .map(p => String(p.grupo || '').trim())
+              .filter(g => g && g.length > 1) // Ignorar valores de 1 sólo carácter (probablemente residuales)
+          )].sort()
+          
           setGruposDisponibles(gruposUnicos)
+          
+          // Si no hay grupos válidos, establecer un grupo por defecto y cargar jueces
+          if (gruposUnicos.length === 0) {
+            setGrupoSeleccionado('sin-grupo')
+          }
         }
       } catch (error) {
         console.error('Error al cargar final activa:', error)
@@ -51,7 +62,7 @@ function App() {
     cargarFinalActiva()
   }, [])
 
-  // Cargar jueces cuando se selecciona un grupo
+  // Cargar jueces cuando se selecciona un grupo (o si no hay grupos)
   useEffect(() => {
     const cargarJuecesDeGrupo = () => {
       if (!grupoSeleccionado || !finalActiva?.id) {
@@ -61,8 +72,14 @@ function App() {
       }
 
       try {
-        // Filtrar proyectos del grupo seleccionado
-        const proyectosDelGrupo = proyectosCargados.filter(p => p.grupo === grupoSeleccionado)
+        // Si no hay grupos, cargar TODOS los jueces
+        let proyectosDelGrupo
+        if (grupoSeleccionado === 'sin-grupo') {
+          proyectosDelGrupo = proyectosCargados
+        } else {
+          // Filtrar proyectos del grupo seleccionado
+          proyectosDelGrupo = proyectosCargados.filter(p => p.grupo === grupoSeleccionado)
+        }
         
         // Extraer jueces únicos del campo "juez" (separado por comas)
         const juecesSet = new Set()
@@ -84,7 +101,7 @@ function App() {
     }
 
     cargarJuecesDeGrupo()
-  }, [grupoSeleccionado, proyectosCargados])
+  }, [grupoSeleccionado, proyectosCargados, finalActiva])
 
   // Suscripción en tiempo real a los estados de jueces
   useEffect(() => {
@@ -109,13 +126,15 @@ function App() {
   }, [finalActiva])
 
   const handleSubmit = async () => {
+    // Si no hay grupos, solo validar el juez
+    const sinGrupos = gruposDisponibles.length === 0
     const nuevosErrores = { 
-      seleccion: !grupoSeleccionado || !juezSeleccionado
+      seleccion: !juezSeleccionado
     }
     
     setErrores(nuevosErrores)
     if (Object.values(nuevosErrores).includes(true)) {
-      setSnackbar({ open: true, mensaje: 'Debes seleccionar un grupo y un juez', severity: 'warning' })
+      setSnackbar({ open: true, mensaje: sinGrupos ? 'Debes seleccionar un juez' : 'Debes seleccionar un grupo y un juez', severity: 'warning' })
       return
     }
 
@@ -128,6 +147,14 @@ function App() {
     try {
       // Filtrar proyectos del grupo que contengan al juez seleccionado
       const proyectosFiltrados = proyectosCargados.filter(p => {
+        // Si no hay grupos, filtrar solo por juez
+        if (sinGrupos) {
+          if (!p.juez) return false
+          const juecesProyecto = String(p.juez).split(',').map(j => j.trim())
+          return juecesProyecto.includes(juezSeleccionado)
+        }
+        
+        // Si hay grupos, filtrar por grupo y juez
         if (p.grupo !== grupoSeleccionado) return false
         if (!p.juez) return false
         
@@ -139,7 +166,9 @@ function App() {
       if (proyectosFiltrados.length === 0) {
         setSnackbar({ 
           open: true, 
-          mensaje: `No hay proyectos asignados al juez ${juezSeleccionado} en ${grupoSeleccionado}`, 
+          mensaje: sinGrupos 
+            ? `No hay proyectos asignados al juez ${juezSeleccionado}` 
+            : `No hay proyectos asignados al juez ${juezSeleccionado} en ${grupoSeleccionado}`, 
           severity: 'warning' 
         })
         setLoadingProyectos(false)
@@ -147,7 +176,8 @@ function App() {
       }
       
       // Registrar al juez como "evaluando" en Firebase (verifica estado actual)
-      const resultado = await registrarJuezEvaluando(finalActiva.id, juezSeleccionado, grupoSeleccionado)
+      const grupoParaRegistro = sinGrupos ? 'sin-grupo' : grupoSeleccionado
+      const resultado = await registrarJuezEvaluando(finalActiva.id, juezSeleccionado, grupoParaRegistro)
       
       // Si no se permite la entrada (ya está evaluando), mostrar mensaje y detener
       if (!resultado.success) {
@@ -167,7 +197,7 @@ function App() {
           proyectos: proyectosFiltrados, 
           finalNombre: finalActiva.nombre, 
           finalId: finalActiva.id,
-          grupo: grupoSeleccionado
+          grupo: sinGrupos ? 'sin-grupo' : grupoSeleccionado
         }
       })
     } catch (error) {
@@ -265,7 +295,7 @@ function App() {
         <Box sx={{
           mt: { xs: 3.5, md: 4 },
           width: '100%',
-          maxWidth: { xs: 'calc(100% - 32px)', sm: 420, md: 460 },
+          maxWidth: { xs: 'calc(100% - 32px)', sm: 600, md: 800, lg: 1000 },
           backgroundColor: '#ffffff',
           border: '1px solid #e0e0e0', // Borde gris claro
           boxShadow: '0px 10px 40px rgba(0, 26, 110, 0.08)', // Sombra sutil con tono navy
@@ -323,8 +353,8 @@ function App() {
             </Box>
           )}
 
-          {/* Selector de Juez - Se muestra cuando hay grupo seleccionado */}
-          {grupoSeleccionado && juecesDisponibles.length > 0 && (
+          {/* Selector de Juez - Se muestra cuando hay grupo seleccionado o cuando no hay grupos */}
+          {juecesDisponibles.length > 0 && (
             <Box sx={{ mt: 2 }}>
               <Typography sx={{
                 color: '#555',
@@ -408,7 +438,7 @@ function App() {
           {/* Mensaje de error de selección */}
           {errores.seleccion && (
             <Typography sx={{ color: '#d32f2f', fontSize: 12, mt: 1, fontFamily: 'inherit' }}>
-              Debes seleccionar un grupo y un juez
+              {gruposDisponibles.length === 0 ? 'Debes seleccionar un juez' : 'Debes seleccionar un grupo y un juez'}
             </Typography>
           )}
 

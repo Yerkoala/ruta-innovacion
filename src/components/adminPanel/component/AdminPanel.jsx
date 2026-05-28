@@ -70,6 +70,13 @@ export default function AdminPanel() {
         'pinta-pa-bueno': { DESAFIO: 20, CREATIVIDAD: 15, IMPLEMENTABILIDAD: 20, ESCALABILIDAD: 15, EBITDA: 20, PRODUCTIVIDAD: 10 },
         'eureka': { DESAFIO: 20, CREATIVIDAD: 15, IMPLEMENTABILIDAD: 20, ESCALABILIDAD: 15, EBITDA: 20, PRODUCTIVIDAD: 10 }
     });
+    const [criteriosTipo, setCriteriosTipo] = useState({
+        'chispeza': { DESAFIO: 'numeric', CREATIVIDAD: 'numeric', IMPLEMENTABILIDAD: 'numeric', ESCALABILIDAD: 'numeric', IMPACTO: 'numeric' },
+        'sandia-cala': { DESAFIO: 'numeric', CREATIVIDAD: 'numeric', IMPLEMENTABILIDAD: 'numeric', ESCALABILIDAD: 'numeric', EBITDA: 'numeric', PRODUCTIVIDAD: 'numeric' },
+        'mejora-continua': { DESAFIO: 'numeric', CREATIVIDAD: 'numeric', IMPLEMENTABILIDAD: 'numeric', ESCALABILIDAD: 'numeric', EBITDA: 'numeric', PRODUCTIVIDAD: 'numeric' },
+        'pinta-pa-bueno': { DESAFIO: 'numeric', CREATIVIDAD: 'numeric', IMPLEMENTABILIDAD: 'numeric', ESCALABILIDAD: 'numeric', EBITDA: 'numeric', PRODUCTIVIDAD: 'numeric' },
+        'eureka': { DESAFIO: 'numeric', CREATIVIDAD: 'numeric', IMPLEMENTABILIDAD: 'numeric', ESCALABILIDAD: 'numeric', EBITDA: 'numeric', PRODUCTIVIDAD: 'numeric' }
+    });
     const [loadingPonderaciones, setLoadingPonderaciones] = useState(false);
     const [loadingSaveCategoria, setLoadingSaveCategoria] = useState(null); // Track qué categoría se está guardando
     const [nuevoCriterioNombre, setNuevoCriterioNombre] = useState({});
@@ -325,18 +332,26 @@ export default function AdminPanel() {
             const lista = cats || categoriasConfig;
             const nuevasPonderaciones = {};
             const nuevoFeedbackConfig = {};
+            const nuevosCriteriosTipo = {};
             for (const cat of lista) {
                 const data = await obtenerPonderaciones(cat.id);
-                // Separar ponderaciones de config feedback
-                const { feedbackEnabled, feedbackRequired, ...ponderacionesLimpias } = data;
+                // Separar ponderaciones de config feedback y tipos
+                const { feedbackEnabled, feedbackRequired, criteriosTipo, ...ponderacionesLimpias } = data;
                 nuevasPonderaciones[cat.id] = ponderacionesLimpias;
                 nuevoFeedbackConfig[cat.id] = {
                     enabled: feedbackEnabled || false,
                     required: feedbackRequired || false
                 };
+                // Cargar tipos, si no existen asignar 'numeric' por defecto
+                const tiposParaCategoria = {};
+                Object.keys(ponderacionesLimpias).forEach(campo => {
+                    tiposParaCategoria[campo] = criteriosTipo?.[campo] || 'numeric';
+                });
+                nuevosCriteriosTipo[cat.id] = tiposParaCategoria;
             }
             setPonderaciones(nuevasPonderaciones);
             setFeedbackConfig(nuevoFeedbackConfig);
+            setCriteriosTipo(nuevosCriteriosTipo);
         } catch (error) {
             mostrarNotificacion('Error al cargar ponderaciones', 'error');
         } finally {
@@ -371,10 +386,12 @@ export default function AdminPanel() {
         setLoadingSaveCategoria(categoria);
         try {
             const feedback = feedbackConfig[categoria] || { enabled: false, required: false };
+            const tipos = criteriosTipo[categoria] || {};
             const dataToSave = {
                 ...ponderaciones[categoria],
                 feedbackEnabled: feedback.enabled,
-                feedbackRequired: feedback.required
+                feedbackRequired: feedback.required,
+                criteriosTipo: tipos
             };
             await guardarPonderaciones(categoria, dataToSave);
             mostrarNotificacion('Ponderaciones y configuración guardadas correctamente', 'success');
@@ -402,13 +419,29 @@ export default function AdminPanel() {
             ...prev,
             [categoria]: { ...prev[categoria], [nombreLimpio]: 0 }
         }));
+        setCriteriosTipo(prev => ({
+            ...prev,
+            [categoria]: { ...prev[categoria], [nombreLimpio]: 'numeric' }
+        }));
         setNuevoCriterioNombre(prev => ({ ...prev, [categoria]: '' }));
     };
 
     const eliminarCriterio = (categoria, nombre) => {
         if (Object.keys(ponderaciones[categoria] || {}).length <= 1) return;
         const { [nombre]: _, ...resto } = ponderaciones[categoria];
+        const { [nombre]: __, ...restoTipos } = criteriosTipo[categoria] || {};
         setPonderaciones(prev => ({ ...prev, [categoria]: resto }));
+        setCriteriosTipo(prev => ({ ...prev, [categoria]: restoTipos }));
+    };
+
+    const actualizarTipoCriterio = (categoria, campo, tipo) => {
+        setCriteriosTipo(prev => ({
+            ...prev,
+            [categoria]: {
+                ...(prev[categoria] || {}),
+                [campo]: tipo
+            }
+        }));
     };
 
     const calcularTextColor = (hex) => {
@@ -1298,29 +1331,61 @@ export default function AdminPanel() {
                                                 </Typography>
 
                                                 {/* Criterios existentes */}
-                                                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2 }}>
-                                                    {Object.entries(criterios).map(([campo, valor]) => (
-                                                        <Box key={campo} sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                                                            <TextField
-                                                                label={campo}
-                                                                type="number"
-                                                                value={valor}
-                                                                onChange={(e) => actualizarPonderacion(cat.id, campo, e.target.value)}
-                                                                InputProps={{ endAdornment: '%' }}
-                                                                inputProps={{ min: 0, max: 100 }}
-                                                                size="small"
-                                                                fullWidth
-                                                            />
-                                                            <IconButton
-                                                                size="small"
-                                                                onClick={() => eliminarCriterio(cat.id, campo)}
-                                                                disabled={Object.keys(criterios).length <= 1}
-                                                                sx={{ color: 'error.main', flexShrink: 0 }}
-                                                            >
-                                                                <DeleteIcon fontSize="small" />
-                                                            </IconButton>
-                                                        </Box>
-                                                    ))}
+                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                    {Object.entries(criterios).map(([campo, valor]) => {
+                                                        const tipoCampo = criteriosTipo[cat.id]?.[campo] || 'numeric';
+                                                        return (
+                                                            <Box key={campo} sx={{ 
+                                                                display: 'flex', 
+                                                                gap: 1.5, 
+                                                                alignItems: 'center',
+                                                                p: 2,
+                                                                bgcolor: '#fafafa',
+                                                                borderRadius: 2,
+                                                                border: '1px solid #e0e0e0'
+                                                            }}>
+                                                                <Typography 
+                                                                    sx={{ 
+                                                                        minWidth: 150, 
+                                                                        fontWeight: 600,
+                                                                        color: cat.color,
+                                                                        fontSize: 14
+                                                                    }}
+                                                                >
+                                                                    {campo}
+                                                                </Typography>
+                                                                <FormControl size="small" sx={{ minWidth: 140 }}>
+                                                                    <InputLabel>Tipo</InputLabel>
+                                                                    <Select
+                                                                        value={tipoCampo}
+                                                                        onChange={(e) => actualizarTipoCriterio(cat.id, campo, e.target.value)}
+                                                                        label="Tipo"
+                                                                    >
+                                                                        <MenuItem value="numeric">🔢 Numérico (1-5)</MenuItem>
+                                                                        <MenuItem value="boolean">✓ Sí / No</MenuItem>
+                                                                    </Select>
+                                                                </FormControl>
+                                                                <TextField
+                                                                    label="Peso"
+                                                                    type="number"
+                                                                    value={valor}
+                                                                    onChange={(e) => actualizarPonderacion(cat.id, campo, e.target.value)}
+                                                                    InputProps={{ endAdornment: '%' }}
+                                                                    inputProps={{ min: 0, max: 100 }}
+                                                                    size="small"
+                                                                    sx={{ width: 100 }}
+                                                                />
+                                                                <IconButton
+                                                                    size="small"
+                                                                    onClick={() => eliminarCriterio(cat.id, campo)}
+                                                                    disabled={Object.keys(criterios).length <= 1}
+                                                                    sx={{ color: 'error.main', flexShrink: 0 }}
+                                                                >
+                                                                    <DeleteIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </Box>
+                                                        );
+                                                    })}
                                                 </Box>
 
                                                 {/* Agregar nuevo criterio */}

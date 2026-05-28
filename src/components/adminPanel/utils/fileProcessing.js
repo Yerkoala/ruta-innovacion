@@ -32,6 +32,10 @@ export const procesarArchivoExcel = (file) => {
                     Impacto: row['Impacto'] || row['impacto'] || '',
                     Grupo: row['Grupo'] || row['grupo'] || null,
                     Juez: row['Juez'] || row['juez'] || '', // Campo para jueces separados por coma
+                    Costo_implementacion: row['Costo_implementacion'] || row['costo_implementacion'] || '',
+                    Costo_piloto: row['Costo_piloto'] || row['costo_piloto'] || '',
+                    Casos: row['Casos'] || row['casos'] || '',
+                    Empresa: row['Empresa'] || row['empresa'] || '',
                 }));
 
                 resolve(mapped);
