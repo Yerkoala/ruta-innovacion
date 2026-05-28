@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, where, collectionGroup } from 'firebase/firestore';
 import { db } from '../firebaseconfig';
 import COLORS from '../assets/colors';
+import * as XLSX from 'xlsx';
 import { 
   Box, 
   Container, 
@@ -18,6 +19,7 @@ import {
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import DownloadIcon from '@mui/icons-material/Download';
 
 // Función para normalizar strings
 const normalizarTexto = (texto) => {
@@ -282,6 +284,52 @@ export default function Ranking() {
     );
   };
 
+  const exportarExcel = () => {
+    // Preparar datos para exportar
+    const datosExportar = [];
+    let index = 1;
+
+    // Recorrer las categorías y proyectos en el orden del ranking
+    Object.entries(groupedAndSortedData).forEach(([catKey, { nombreDisplay, proyectos: proyectosCategoria }]) => {
+      proyectosCategoria.forEach((proyecto) => {
+        datosExportar.push({
+          'Index': index++,
+          'ID': proyecto.numero || '',
+          'Nombre Proyecto': proyecto.proyecto || '',
+          'Nota': proyecto.resultado?.nota ? proyecto.resultado.nota.toFixed(2) : 'Sin evaluar',
+          'Líder': proyecto.lider || '',
+          'Gerencia': proyecto.gerencia || '',
+          'Grupo': proyecto.grupo || ''
+        });
+      });
+    });
+
+    // Crear libro y hoja de Excel
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(datosExportar);
+
+    // Ajustar ancho de columnas
+    const colWidths = [
+      { wch: 8 },  // Index
+      { wch: 8 },  // ID
+      { wch: 50 }, // Nombre Proyecto
+      { wch: 10 }, // Nota
+      { wch: 35 }, // Líder
+      { wch: 30 }, // Gerencia
+      { wch: 15 }  // Grupo
+    ];
+    ws['!cols'] = colWidths;
+
+    // Agregar hoja al libro
+    XLSX.utils.book_append_sheet(wb, ws, 'Ranking');
+
+    // Generar nombre del archivo
+    const nombreArchivo = `Ranking_${finalActiva.nombre}_${activeGroup === 'todos' ? 'Todos' : 'Grupo_' + activeGroup}_${new Date().toLocaleDateString('es-CL').replace(/\//g, '-')}.xlsx`;
+
+    // Descargar archivo
+    XLSX.writeFile(wb, nombreArchivo);
+  };
+
   if (loading) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#fafafa' }}>
@@ -351,6 +399,24 @@ export default function Ranking() {
                 size="small"
                 sx={{ bgcolor: '#f5f5f5', fontWeight: 600, fontSize: 12 }}
               />
+              <Button
+                onClick={exportarExcel}
+                startIcon={<DownloadIcon />}
+                size="small"
+                disabled={Object.keys(groupedAndSortedData).length === 0}
+                sx={{ 
+                  bgcolor: COLORS.orange,
+                  color: 'white',
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: 12,
+                  px: 2,
+                  '&:hover': { bgcolor: COLORS.orangeDark },
+                  '&:disabled': { bgcolor: '#e0e0e0', color: '#999' }
+                }}
+              >
+                Descargar Excel
+              </Button>
             </Box>
           </Box>
 
