@@ -1,9 +1,15 @@
 {
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/assets/*", "/*.{css,js,json,svg,png,jpg,jpeg,gif,ico,woff,woff2,ttf,eot}"]
+    "exclude": ["/assets/*"]
   },
   "routes": [
+    {
+      "route": "/assets/*",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
     {
       "route": "/*",
       "serve": "/index.html",
@@ -14,6 +20,6 @@
     "apiRuntime": "node:16"
   },
   "globalHeaders": {
-    "Cache-Control": "public, max-age=31536000, immutable"
+    "Cache-Control": "no-cache, must-revalidate"
   }
 }
