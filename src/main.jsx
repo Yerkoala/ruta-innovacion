@@ -10,11 +10,11 @@ import RankingPrivado from './components/rankingPrivado/RankingPrivado';
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>
     <Routes>
-      <Route path="/" element={<App />} />
-      <Route path="/evaluacion" element={<EvaluacionProyectos />} />
       <Route path="/admin" element={<AdminPanel />} />
       <Route path="/ranking" element={<Ranking />} />
       <Route path="/ranking-privado" element={<RankingPrivado />} />
+      <Route path="/:finalId" element={<App />} />
+      <Route path="/:finalId/evaluacion" element={<EvaluacionProyectos />} />
     </Routes>
   </BrowserRouter>
 );

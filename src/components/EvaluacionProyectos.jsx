@@ -417,7 +417,7 @@ function EvaluacionProyectos() {
             <Container maxWidth="md">
                 <Box mt={4}>
                     <Alert severity="warning">No hay proyectos para evaluar o falta información.</Alert>
-                    <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/')} sx={{ mt: 2 }}>
+                    <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(`/${finalId}`)} sx={{ mt: 2 }}>
                         Volver al inicio
                     </Button>
                 </Box>
@@ -429,7 +429,7 @@ function EvaluacionProyectos() {
         <Container maxWidth="md" sx={{ pb: 6 }}>
             {/* Cabecera */}
             <Box mt={3} mb={4}>
-                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/')} size="small" sx={{ mb: 2, color: 'text.secondary' }}>
+                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(`/${finalId}`)} size="small" sx={{ mb: 2, color: 'text.secondary' }}>
                     Volver
                 </Button>
 

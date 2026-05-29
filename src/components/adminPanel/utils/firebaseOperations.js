@@ -25,6 +25,29 @@ export const obtenerFinalActiva = async () => {
 };
 
 /**
+ * Obtiene una final específica por su ID
+ * @param {string} finalId - ID de la final (ej: "match-ruta-proveedores-2026")
+ * @returns {Promise<Object|null>} Objeto con datos de la final o null si no existe
+ */
+export const obtenerFinalPorId = async (finalId) => {
+    try {
+        const finalDoc = doc(db, 'finales', finalId);
+        const snapshot = await getDoc(finalDoc);
+        
+        if (snapshot.exists()) {
+            return {
+                id: snapshot.id,
+                ...snapshot.data()
+            };
+        }
+        return null;
+    } catch (error) {
+        console.error('Error al obtener final por ID:', error);
+        return null;
+    }
+};
+
+/**
  * Carga todas las finales desde Firebase
  * @returns {Promise<Array>} Array de finales
  */

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -9,11 +9,13 @@ import {
   Snackbar,
   Alert,
   CssBaseline,
+  GlobalStyles,
 } from '@mui/material'
-import { obtenerFinalActiva, obtenerProyectosPorFinal, obtenerEstadoJuez, suscribirseEstadosJueces, registrarJuezEvaluando } from './components/adminPanel/utils/firebaseOperations'
+import { obtenerFinalPorId, obtenerProyectosPorFinal, obtenerEstadoJuez, suscribirseEstadosJueces, registrarJuezEvaluando } from './components/adminPanel/utils/firebaseOperations'
 import COLORS from './assets/colors'
 
 function App() {
+  const { finalId } = useParams()
   const [juezSeleccionado, setJuezSeleccionado] = useState('')
   const [grupoSeleccionado, setGrupoSeleccionado] = useState(null)
   const [gruposDisponibles, setGruposDisponibles] = useState([])
@@ -29,9 +31,22 @@ function App() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const cargarFinalActiva = async () => {
+    const cargarFinal = async () => {
       try {
-        const final = await obtenerFinalActiva()
+        if (!finalId) {
+          setSnackbar({ open: true, mensaje: 'No se especificó una final válida', severity: 'error' })
+          setLoadingFinal(false)
+          return
+        }
+
+        const final = await obtenerFinalPorId(finalId)
+        
+        if (!final) {
+          setSnackbar({ open: true, mensaje: `No se encontró la final: ${finalId}`, severity: 'error' })
+          setLoadingFinal(false)
+          return
+        }
+
         setFinalActiva(final)
         
         // Cargar proyectos para detectar grupos disponibles
@@ -54,13 +69,14 @@ function App() {
           }
         }
       } catch (error) {
-        console.error('Error al cargar final activa:', error)
+        console.error('Error al cargar final:', error)
+        setSnackbar({ open: true, mensaje: 'Error al cargar la información de la final', severity: 'error' })
       } finally {
         setLoadingFinal(false)
       }
     }
-    cargarFinalActiva()
-  }, [])
+    cargarFinal()
+  }, [finalId])
 
   // Cargar jueces cuando se selecciona un grupo (o si no hay grupos)
   useEffect(() => {
@@ -191,7 +207,7 @@ function App() {
       }
       
       // Si todo está bien, navegar a la evaluación
-      navigate('/evaluacion', {
+      navigate(`/${finalId}/evaluacion`, {
         state: { 
           nombre: juezSeleccionado, 
           proyectos: proyectosFiltrados, 
@@ -211,9 +227,10 @@ function App() {
     <>
       {/* CssBaseline elimina los márgenes por defecto del body que causan el doble scroll */}
       <CssBaseline />
+      <GlobalStyles styles={{ body: { overflowX: 'hidden' } }} />
       <Box
         sx={{
-          height: '100vh', // Altura exacta de la ventana
+          minHeight: '100vh',
           backgroundColor: '#ffffff',
           display: 'flex',
           flexDirection: 'column',
@@ -221,8 +238,8 @@ function App() {
           alignItems: 'center',
           fontFamily: "'Montserrat', sans-serif",
           position: 'relative',
-          overflow: 'hidden', // Evita scroll
           boxSizing: 'border-box',
+          py: { xs: 3, sm: 4 },
         }}
       >
         {/* Círculos decorativos - Se aumentó un poco la opacidad para que se noten bien en blanco */}
@@ -491,10 +508,9 @@ function App() {
           textAlign: 'center',
           color: '#999', // Gris claro para el footer
           fontSize: 11, letterSpacing: 0.3,
-          position: 'absolute',
-          bottom: 24,
-          left: 0,
-          right: 0,
+          mt: 'auto', // Empuja el footer hacia abajo cuando hay espacio
+          pt: 4,
+          pb: 2,
           zIndex: 1,
         }}>
           Plataforma de evaluación interna · Agrosuper S.A.

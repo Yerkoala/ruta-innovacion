@@ -715,10 +715,21 @@ export default function AdminPanel() {
                         </Typography>
                     </Box>
 
-                    {/* Selector de Final Activa */}
+                    {/* Información sobre URLs de acceso */}
+                    <Alert severity="info" icon={<CheckIcon />} sx={{ mb: 3, borderRadius: 2 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                            🔗 Acceso Simultáneo por URL
+                        </Typography>
+                        <Typography variant="body2">
+                            Cada final tiene su propia URL única. Múltiples finales pueden funcionar simultáneamente sin conflictos. 
+                            Encuentra las URLs en la sección "Gestionar Finales" más abajo.
+                        </Typography>
+                    </Alert>
+
+                    {/* Acceso Rápido a Finales */}
                     <Paper sx={{ p: 3 }}>
-                        <Typography variant="h6" mb={2.5} sx={{ fontWeight: 600 }}>
-                            Final Activa del Sistema
+                        <Typography variant="h6" mb={1} sx={{ fontWeight: 600 }}>
+                            🚀 Acceso Rápido a Finales
                         </Typography>
 
                         {loadingFinalActiva ? (
@@ -734,7 +745,6 @@ export default function AdminPanel() {
                                             label="Año"
                                             onChange={e => setAnioFiltroFinalActiva(e.target.value)}
                                             sx={{ borderRadius: 2 }}
-                                            disabled={loadingCambioFinal}
                                         >
                                             {aniosConFinales.length > 0 ? (
                                                 aniosConFinales.map((anio) => (
@@ -754,7 +764,6 @@ export default function AdminPanel() {
                                             label="Tipo de Final"
                                             onChange={e => setTipoFinalFiltro(e.target.value)}
                                             sx={{ borderRadius: 2 }}
-                                            disabled={loadingCambioFinal}
                                         >
                                             <MenuItem value="Evaluacion">Evaluación</MenuItem>
                                             <MenuItem value="Priorizacion">Priorización</MenuItem>
@@ -763,21 +772,13 @@ export default function AdminPanel() {
 
                                     {/* Selector de Final */}
                                     <FormControl fullWidth>
-                                        <InputLabel>Selecciona la final activa</InputLabel>
+                                        <InputLabel>Selecciona una final</InputLabel>
                                         <Select
                                             value={finalActivaId}
-                                            label="Selecciona la final activa"
-                                            onChange={e => cambiarFinalActiva(e.target.value)}
+                                            label="Selecciona una final"
+                                            onChange={e => setFinalActivaId(e.target.value)}
                                             sx={{ borderRadius: 2 }}
-                                            disabled={finalesFiltradas.length === 0 || loadingCambioFinal}
-                                            endAdornment={
-                                                loadingCambioFinal && (
-                                                    <CircularProgress 
-                                                        size={20} 
-                                                        sx={{ mr: 2 }} 
-                                                    />
-                                                )
-                                            }
+                                            disabled={finalesFiltradas.length === 0}
                                         >
                                             {finalesFiltradas.map((final) => (
                                                 <MenuItem key={final.id} value={final.id}>
@@ -788,14 +789,51 @@ export default function AdminPanel() {
                                     </FormControl>
                                 </Stack>
 
-                                {loadingCambioFinal && (
-                                    <LinearProgress sx={{ mt: 2, borderRadius: 1 }} />
-                                )}
-
-                                {finalActivaId && !loadingCambioFinal && (
-                                    <Alert severity="success" icon={<CheckIcon />} sx={{ mt: 2, borderRadius: 2 }}>
-                                        <span>Final activa del sistema: <strong>{finalesDisponibles.find(f => f.id === finalActivaId)?.nombre || 'No configurada'} {finalesDisponibles.find(f => f.id === finalActivaId)?.anio || ''}</strong></span>
-                                    </Alert>
+                                {finalActivaId && (
+                                    <Stack spacing={2} sx={{ mt: 2 }}>
+                                        <Alert severity="info" icon={<CheckIcon />} sx={{ borderRadius: 2 }}>
+                                            <Stack direction="row" alignItems="center" spacing={1}>
+                                                <span>URL seleccionada:</span>
+                                                <Typography component="span" sx={{ fontFamily: 'monospace', fontWeight: 600, color: 'primary.main' }}>
+                                                    {window.location.origin}/{finalActivaId}
+                                                </Typography>
+                                            </Stack>
+                                        </Alert>
+                                        <Stack direction="row" spacing={2}>
+                                            <Button
+                                                variant="contained"
+                                                color="primary"
+                                                size="large"
+                                                fullWidth
+                                                onClick={() => window.open(`/${finalActivaId}`, '_blank')}
+                                                sx={{ 
+                                                    py: 1.5,
+                                                    fontSize: 15,
+                                                    fontWeight: 600,
+                                                    borderRadius: 2,
+                                                    boxShadow: '0 4px 14px rgba(46,125,50,0.3)'
+                                                }}
+                                            >
+                                                🚀 Abrir en Nueva Pestaña
+                                            </Button>
+                                            <Button
+                                                variant="outlined"
+                                                color="primary"
+                                                size="large"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(`${window.location.origin}/${finalActivaId}`);
+                                                    mostrarNotificacion('URL copiada al portapapeles', 'success');
+                                                }}
+                                                sx={{ 
+                                                    py: 1.5,
+                                                    minWidth: 150,
+                                                    borderRadius: 2
+                                                }}
+                                            >
+                                                📋 Copiar URL
+                                            </Button>
+                                        </Stack>
+                                    </Stack>
                                 )}
 
                                 {finalesDisponibles.length === 0 && (
@@ -1152,8 +1190,8 @@ export default function AdminPanel() {
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary">
                                         {finalesDisponibles.length > 0
-                                            ? `${finalesDisponibles.length} final${finalesDisponibles.length !== 1 ? 'es' : ''} configurada${finalesDisponibles.length !== 1 ? 's' : ''}`
-                                            : 'Crea y administra las finales de cada año'
+                                            ? `${finalesDisponibles.length} final${finalesDisponibles.length !== 1 ? 'es' : ''} configurada${finalesDisponibles.length !== 1 ? 's' : ''} • Cada una con su URL única`
+                                            : 'Crea finales - cada una tendrá su propia URL de acceso'
                                         }
                                     </Typography>
                                 </Box>
@@ -1205,7 +1243,7 @@ export default function AdminPanel() {
                                                 <TableCell sx={{ fontWeight: 700 }}>Año</TableCell>
                                                 <TableCell sx={{ fontWeight: 700 }}>Tipo</TableCell>
                                                 <TableCell sx={{ fontWeight: 700 }}>ID</TableCell>
-                                                <TableCell sx={{ fontWeight: 700 }}>Estado</TableCell>
+                                                <TableCell sx={{ fontWeight: 700 }}>URL de Acceso</TableCell>
                                                 <TableCell align="right" sx={{ fontWeight: 700 }}>Acciones</TableCell>
                                             </TableRow>
                                         </TableHead>
@@ -1228,29 +1266,29 @@ export default function AdminPanel() {
                                                         </Typography>
                                                     </TableCell>
                                                     <TableCell>
-                                                        {final.activa ? (
-                                                            <Chip label="ACTIVA" color="success" size="small" />
-                                                        ) : (
-                                                            <Chip label="Inactiva" variant="outlined" size="small" />
-                                                        )}
+                                                        <Stack direction="row" alignItems="center" spacing={1}>
+                                                            <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'primary.main' }}>
+                                                                {window.location.origin}/{final.id}
+                                                            </Typography>
+                                                            <IconButton
+                                                                size="small"
+                                                                color="primary"
+                                                                onClick={() => {
+                                                                    navigator.clipboard.writeText(`${window.location.origin}/${final.id}`);
+                                                                    mostrarNotificacion('URL copiada al portapapeles', 'success');
+                                                                }}
+                                                                title="Copiar URL"
+                                                            >
+                                                                <CopyIcon sx={{ fontSize: 16 }} />
+                                                            </IconButton>
+                                                        </Stack>
                                                     </TableCell>
                                                     <TableCell align="right">
                                                         <Stack direction="row" spacing={1} justifyContent="flex-end">
-                                                            {!final.activa && (
-                                                                <Button
-                                                                    size="small"
-                                                                    variant="outlined"
-                                                                    color="success"
-                                                                    onClick={() => marcarComoActiva(final.id)}
-                                                                >
-                                                                    Activar
-                                                                </Button>
-                                                            )}
                                                             <IconButton
                                                                 size="small"
                                                                 color="error"
                                                                 onClick={() => eliminarFinal(final.id, final.nombre)}
-                                                                disabled={final.activa}
                                                             >
                                                                 <DeleteIcon />
                                                             </IconButton>
