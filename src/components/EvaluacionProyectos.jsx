@@ -326,7 +326,11 @@ function EvaluacionProyectos() {
 
         const calificaciones = inputs[proyectoId] || {}
         const camposRequeridos = obtenerCamposPorCategoria(proyecto.categoria).map(c => c.nombre)
-        const tieneCamposVacios = camposRequeridos.some(campo => !calificaciones[campo])
+        // Validación corregida: 0 es un valor válido (para campos booleanos donde "No" = 0)
+        const tieneCamposVacios = camposRequeridos.some(campo => {
+            const valor = calificaciones[campo]
+            return valor === undefined || valor === null || valor === ''
+        })
 
         // Validar feedback si está habilitado y es requerido
         const catNormalizada = normalizarTexto(proyecto.categoria)
