@@ -36,6 +36,7 @@ export const procesarArchivoExcel = (file) => {
                     Costo_piloto: row['Costo_piloto'] || row['costo_piloto'] || '',
                     Casos: row['Casos'] || row['casos'] || '',
                     Empresa: row['Empresa'] || row['empresa'] || '',
+                    Ficha: row['Ficha'] || row['ficha'] || '',
                 }));
 
                 resolve(mapped);

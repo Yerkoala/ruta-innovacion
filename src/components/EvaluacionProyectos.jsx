@@ -677,6 +677,34 @@ function EvaluacionProyectos() {
                                                 </Box>
                                             )}
 
+                                            {proyecto.Ficha && (
+                                                <Box sx={{ backgroundColor: '#e3f2fd', p: 2.5, borderRadius: 2, border: '2px solid #2196f3', mb: 3, textAlign: 'center' }}>
+                                                    <Typography variant="caption" sx={{ color: '#1976d2', fontWeight: 700, textTransform: 'uppercase', display: 'block', mb: 1 }}>
+                                                        📄 Caso de Negocio
+                                                    </Typography>
+                                                    <Button
+                                                        variant="contained"
+                                                        href={proyecto.Ficha}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        sx={{
+                                                            backgroundColor: '#2196f3',
+                                                            color: '#fff',
+                                                            fontWeight: 700,
+                                                            textTransform: 'none',
+                                                            fontSize: '0.9rem',
+                                                            py: 1,
+                                                            px: 3,
+                                                            '&:hover': {
+                                                                backgroundColor: '#1976d2',
+                                                            }
+                                                        }}
+                                                    >
+                                                        📋 REVISAR FICHA
+                                                    </Button>
+                                                </Box>
+                                            )}
+
                                             <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 700, color: estilo.color }}>
                                                 CALIFICACIÓN
                                             </Typography>

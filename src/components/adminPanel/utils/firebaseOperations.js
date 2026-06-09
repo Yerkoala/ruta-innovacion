@@ -274,6 +274,7 @@ export const guardarProyectosEnFirebase = async (finalId, proyectos, reemplazar 
             if (proyecto.Costo_piloto) proyectoData.Costo_piloto = proyecto.Costo_piloto;
             if (proyecto.Casos) proyectoData.Casos = proyecto.Casos;
             if (proyecto.Empresa) proyectoData.Empresa = proyecto.Empresa;
+            if (proyecto.Ficha) proyectoData.Ficha = proyecto.Ficha;
 
             // Usar ID único basado en finalId + numero para permitir actualizaciones
             const proyectoId = `${finalId}-p${proyectoData.numero}`;

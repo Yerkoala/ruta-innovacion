@@ -1,12 +1,12 @@
 ﻿import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Box, Button, Typography, Select, MenuItem, FormControl, InputLabel, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Alert, Stack, LinearProgress, ThemeProvider, CssBaseline, Accordion, AccordionSummary, AccordionDetails, TextField, Dialog, DialogTitle, DialogContent, DialogActions, IconButton, Snackbar, CircularProgress, Switch, FormControlLabel } from '@mui/material';
-import * as XLSX from 'xlsx';
 
 // Imports locales
 import { theme } from '../const/theme';
 import { UploadIcon, CheckIcon, PlusIcon, ExpandMoreIcon, SettingsIcon, DeleteIcon, CopyIcon, StepBadge } from '../components/Icons';
 import { CategorySection } from '../components/CategorySection';
 import { procesarArchivoExcel, validarArchivoExcel } from '../utils/fileProcessing';
+import { descargarPlantillaFormato, descargarProyectosFirebase } from '../utils/downloadProjects';
 import { cargarFinalesDesdeFirebase, crearFinalEnFirebase, duplicarFinalesEnFirebase, marcarFinalComoActiva, eliminarFinalDeFirebase, obtenerFinalActiva, inicializarFinalesPredeterminadas, guardarProyectosEnFirebase, eliminarProyectosPorFinal, obtenerProyectosPorFinal, obtenerPonderaciones, guardarPonderaciones, obtenerCategoriasPersonalizadas, guardarCategoriasPersonalizadas, obtenerJuecesDeProyectos, suscribirseEstadosJueces, cambiarEstadoVotacionJuez } from '../utils/firebaseOperations';
 
 const CATEGORIAS_DEFECTO = [
@@ -163,43 +163,26 @@ export default function AdminPanel() {
         }
     };
 
-    const descargarPlantillaFormato = () => {
-        // Crear workbook y worksheet
-        const wb = XLSX.utils.book_new();
-        
-        // Definir las columnas de la plantilla
-        const headers = ['N°', 'Proyecto', 'Gerencia', 'Categoría', 'Grupo', 'Líder', 'Descripción', 'Problema', 'Impacto'];
-        
-        // Crear datos de ejemplo (opcional: puedes dejar solo headers)
-        const data = [
-            headers,
-            [1, 'Ejemplo de Proyecto', 'Gerencia Ejemplo', 'chispeza', 'Grupo A', 'Juan Pérez', 'Descripción del proyecto de ejemplo', 'Problema que resuelve el proyecto', 'Impacto esperado del proyecto'],
-            [2, '', '', '', '', '', '', '', '']
-        ];
-        
-        // Crear worksheet desde el array
-        const ws = XLSX.utils.aoa_to_sheet(data);
-        
-        // Establecer anchos de columnas
-        ws['!cols'] = [
-            { wch: 5 },   // N°
-            { wch: 30 },  // Proyecto
-            { wch: 20 },  // Gerencia
-            { wch: 15 },  // Categoría
-            { wch: 12 },  // Grupo
-            { wch: 20 },  // Líder
-            { wch: 50 },  // Descripción
-            { wch: 50 },  // Problema
-            { wch: 50 }   // Impacto
-        ];
-        
-        // Agregar worksheet al workbook
-        XLSX.utils.book_append_sheet(wb, ws, 'Proyectos');
-        
-        // Descargar el archivo
-        XLSX.writeFile(wb, 'plantilla_proyectos.xlsx');
-        
+    // Handlers para descarga de archivos
+    const handleDescargarPlantilla = () => {
+        descargarPlantillaFormato();
         mostrarNotificacion('Plantilla descargada correctamente', 'success');
+    };
+
+    const handleDescargarProyectosFirebase = () => {
+        if (proyectosGuardados.length === 0) {
+            mostrarNotificacion('No hay proyectos para descargar', 'warning');
+            return;
+        }
+
+        const finalNombre = finalesDisponibles.find(f => f.id === eventoSeleccionado)?.nombre || 'proyectos';
+        const exito = descargarProyectosFirebase(proyectosGuardados, finalNombre);
+        
+        if (exito) {
+            mostrarNotificacion(`✅ ${proyectosGuardados.length} proyectos descargados correctamente`, 'success');
+        } else {
+            mostrarNotificacion('Error al descargar proyectos', 'error');
+        }
     };
 
     const limpiarArchivoCargado = () => {
@@ -1018,7 +1001,7 @@ export default function AdminPanel() {
                                             size="small" 
                                             variant="outlined" 
                                             color="primary" 
-                                            onClick={descargarPlantillaFormato} 
+                                            onClick={handleDescargarPlantilla} 
                                             sx={{ fontSize: 11, textTransform: 'none' }}
                                         >
                                             📥 Descargar planilla formato
@@ -1045,6 +1028,22 @@ export default function AdminPanel() {
                                         <StepBadge num="3" />
                                         <Typography variant="h6">Proyectos en Firebase</Typography>
                                         <Box sx={{ flex: 1 }} />
+                                        {proyectosGuardados.length > 0 && (
+                                            <Button
+                                                variant="outlined"
+                                                color="primary"
+                                                size="small"
+                                                onClick={handleDescargarProyectosFirebase}
+                                                sx={{ 
+                                                    borderRadius: 2, 
+                                                    textTransform: 'none',
+                                                    fontWeight: 600,
+                                                    px: 2
+                                                }}
+                                            >
+                                                📥 Descargar Base de Proyectos
+                                            </Button>
+                                        )}
                                         {loadingProyectosGuardados && <CircularProgress size={20} />}
                                     </Stack>
 
