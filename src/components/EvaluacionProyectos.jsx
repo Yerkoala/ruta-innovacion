@@ -25,6 +25,39 @@ const normalizarTexto = (texto) => {
         .trim()
 }
 
+// Función para obtener la descripción de EBITDA según la categoría
+const obtenerDescripcionEBITDA = (categoria) => {
+    const catNormalizada = normalizarTexto(categoria)
+    
+    const escalasEBITDA = {
+        'pinta pa bueno': `Impacto financiero del proyecto en resultados operacionales (EBITDA)
+
+1 = Nulo - Muy Bajo (0 a 20.000 USD). O sin impacto en indicadores clave
+2 = Bajo (20.000 a 100.000 USD). O moviliza un indicador de una unidad de negocio
+3 = Medio (100.000 a 300.000 USD). O moviliza varios indicadores en una unidad de negocio
+4 = Alto (300.000 a 650.000 USD). O moviliza indicadores en más de dos unidades de negocio
+5 = Elevado (650.000 a 1.000.000 USD +). O impacto transversal en la compañía`,
+        
+        'mejora continua': `Impacto financiero del proyecto en resultados operacionales (EBITDA)
+
+1 = Nulo - Muy Bajo (0 a 100.000 USD). O sin impacto en indicadores clave
+2 = Bajo (100.000 a 250.000 USD). O moviliza un indicador de una unidad de negocio
+3 = Medio (250.000 a 450.000 USD). O moviliza varios indicadores en una unidad de negocio
+4 = Alto (450.000 a 650.000 USD). O moviliza indicadores en más de dos unidades de negocio
+5 = Elevado (650.000 USD +). O impacto transversal en la compañía`,
+        
+        'sandia cala': `Evalúa el impacto económico anualizado que el proyecto captura para Agrosuper, considerando ahorros, aumento de productividad o mayores ingresos. Representado en USD
+
+1 = Nulo - Muy Bajo (0 a 50.000 USD). O sin impacto en indicadores clave
+2 = Bajo (50.000 a 150.000 USD). O moviliza un indicador de una unidad de negocio
+3 = Medio (150.000 a 300.000 USD). O moviliza varios indicadores en una unidad de negocio
+4 = Alto (300.000 a 500.000 USD). O moviliza indicadores en más de dos unidades de negocio
+5 = Elevado (500.000 a 650.000 USD +). O impacto transversal en la compañía`,
+    }
+    
+    return escalasEBITDA[catNormalizada] || 'Impacto financiero del proyecto en resultados operacionales (EBITDA)'
+}
+
 // Descripciones y opciones de criterios conocidos; criterios nuevos usan valores por defecto
 const DESCRIPCION_CRITERIOS = {
     DESAFIO:          { descripcion: 'Evalúa el nivel de complejidad y magnitud del problema que aborda el proyecto', opciones: [1, 2, 3, 4, 5] },
@@ -188,10 +221,14 @@ function EvaluacionProyectos() {
         if (criteriosDesdeFirebase && criteriosDesdeFirebase.length > 0) {
             return criteriosDesdeFirebase.map(nombre => {
                 const tipo = tiposDesdeFirebase[nombre] || 'numeric';
+                // Usar descripción dinámica para EBITDA según categoría
+                const descripcion = nombre === 'EBITDA' 
+                    ? obtenerDescripcionEBITDA(categoria)
+                    : (DESCRIPCION_CRITERIOS[nombre]?.descripcion || `Criterio de evaluación: ${nombre}`)
                 return {
                     nombre,
                     tipo,
-                    descripcion: DESCRIPCION_CRITERIOS[nombre]?.descripcion || `Criterio de evaluación: ${nombre}`,
+                    descripcion,
                     opciones: tipo === 'boolean' ? ['Sí', 'No'] : (DESCRIPCION_CRITERIOS[nombre]?.opciones || [1, 2, 3, 4, 5])
                 }
             })
@@ -211,7 +248,7 @@ function EvaluacionProyectos() {
 
         return [
             ...camposBase,
-            { nombre: 'EBITDA',       descripcion: DESCRIPCION_CRITERIOS.EBITDA.descripcion,       opciones: [1, 2, 3, 4, 5] },
+            { nombre: 'EBITDA',       descripcion: obtenerDescripcionEBITDA(categoria),       opciones: [1, 2, 3, 4, 5] },
             { nombre: 'PRODUCTIVIDAD', descripcion: DESCRIPCION_CRITERIOS.PRODUCTIVIDAD.descripcion, opciones: [1, 3, 5] },
         ]
     }
@@ -246,7 +283,14 @@ function EvaluacionProyectos() {
         },
         {
             nombre: 'EBITDA',
-            descripcion: 'Impacto financiero del proyecto en resultados operacionales (EBITDA)',
+            descripcion: `Impacto financiero del proyecto en resultados operacionales (EBITDA)
+
+Escalas de evaluación:
+1 = Nulo - Muy Bajo (0 a 100.000 USD). O sin impacto en indicadores clave
+2 = Bajo (100.000 a 250.000 USD). O moviliza un indicador de una unidad de negocio
+3 = Medio (250.000 a 450.000 USD). O moviliza varios indicadores en una unidad de negocio
+4 = Alto (450.000 a 650.000 USD). O moviliza indicadores en más de dos unidades de negocio
+5 = Elevado (650.000 USD +). O impacto transversal en la compañía`,
             opciones: [1, 2, 3, 4, 5],
             categoria: 'Otras categorías'
         },
